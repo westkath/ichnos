@@ -10,4 +10,4 @@ A project with scripts to methodically calculate the Carbon Footprint of Workflo
 - [Nextflow Trace Files](data/trace/) are generated from [Nextflow]() workflow executions. 
   > **Nextflow enables reproducible computational workflows**
   > P. Di Tommaso, M. Chatzou, E. W. Floden, P. P. Barja, E. Palumbo, and C. Notredame,
-  > Nature Biotechnology, vol. 35, no. 4, pp. 316–319, Apr. 2017, 10.1038/nbt.3820
+  > Nature Biotechnology, vol. 35, no. 4, pp. 316–319, Apr. 2017, https://doi.org/10.1038/nbt.3820
