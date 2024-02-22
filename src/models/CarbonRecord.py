@@ -4,9 +4,12 @@ class CarbonRecord:
         self._energy = energy
         self._co2e = co2e
         self._realtime = realtime
-        self._start = start
-        self._complete = complete
-        self._time_diff = (complete - start).total_seconds()
+
+        if start is not None and complete is not None:
+            self._start = start
+            self._complete = complete
+            self._time_diff = (complete - start).total_seconds()
+
         self._cpu_count = cpu_count
         self._cpu_powerdraw = cpu_powerdraw
         self._cpu_usage = cpu_usage
@@ -35,7 +38,10 @@ class CarbonRecord:
 
     # todo: import from data source
     def get_memory_powerdraw(self):
-        return (self._memory / 8) * 3  # roughly 3 watts per 8 GB
+        return self._memory_powerdraw
+
+    def set_memory_powerdraw(self, memory_powerdraw):
+        self._memory_powerdraw = memory_powerdraw
 
     def get_energy(self):
         return self._energy
@@ -51,4 +57,4 @@ class CarbonRecord:
         self._co2e = co2e
 
     def __str__(self):
-        return f"CarbonRecord: [name:{self._name}, co2e:{round(self._co2e * 1000, 3)}mgCO2e, energy:{round(self._energy * 1000, 3)}mWh, realtime:{self._realtime}s, start:{self._start}, complete:{self._complete}, time_diff:{self._time_diff}s, cpu_model:{self._cpu_model}, cpu_count:{self._cpu_count}, cpu_powerdraw:{self._cpu_powerdraw}W, cpu_usage:{self._cpu_usage}%, memory:{self._memory}GB]"
+        return f"CarbonRecord: [name:{self._name}, co2e:{self._co2e}gCO2e, energy:{self._energy}kWh, realtime:{self._realtime}s, cpu_model:{self._cpu_model}, cpu_count:{self._cpu_count}, cpu_powerdraw:{self._cpu_powerdraw}W, cpu_usage:{self._cpu_usage}%, memory:{self._memory}GB, memory_powerdraw:{self._memory_powerdraw}]"

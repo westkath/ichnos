@@ -5,11 +5,25 @@ class TraceRecord:
     def __init__(self, fields, data):
         self._raw = self.get_raw_data_map(fields, data)
         self._realtime = self._raw['realtime']
-        self._start = self._raw['start']
-        self._complete = self._raw['complete']
+
+        if 'start' in self._raw:
+            self._start = self._raw['start']
+        else:
+            self._start = None 
+
+        if 'complete' in self._raw:
+            self._complete = self._raw['complete']
+        else:
+            self._complete = None
+
         self._cpu_count = self._raw['cpus']
         self._cpu_usage = self._raw['%cpu']
-        self._cpu_model = self._raw['cpu_model']
+
+        if 'cpu_model' in self._raw:
+            self._cpu_model = self._raw['cpu_model']
+        else:
+            self._cpu_model = None
+
         self._memory = self._raw['memory']
         self._name = self._raw['name']
 
