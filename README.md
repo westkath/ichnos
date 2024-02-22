@@ -3,8 +3,10 @@ A project with scripts to methodically calculate the Carbon Footprint of Workflo
 
 # Usage
 For the initial version, replicating the previous calculation approach noted in the Credits section, example usage has been provided with default values:
-> $ python -m src.scripts.CarbonFootprint <trace-file-name> <carbon-intensity> <power-usage-effectiveness> <cpu-power-draw> <memory-power-draw>"
-> $ python -m src.scripts.CarbonFootprint test-trace 475 1.67 12 0.3725
+```
+$ python -m src.scripts.CarbonFootprint <trace-file-name> <carbon-intensity> <power-usage-effectiveness> <cpu-power-draw> <memory-power-draw>"  
+$ python -m src.scripts.CarbonFootprint test-trace 475 1.67 12 0.3725  
+```  
 Note that the trace file name must be the file name only, and traces should be csv files stored in the [data trace](data/trace/) directory!
 Future plans will look at using CI values based on the time interval that the trace was executed in, and inclusion of variable cpu and memory power draw values. 
 
