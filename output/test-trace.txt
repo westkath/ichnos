@@ -1,0 +1,5 @@
+name,co2e,energy,realtime,cpu_model,cpu_count,cpu_powerdraw,cpu_usage,memory,memory_powerdraw
+fastqc (4),9.813824583333334e-06,2.0660683333333333e-08,3.0,13th Gen Intel(R) Core(TM) i7-13700,4,12,111.3,4,0.3725
+fastqc (1),9.544119583333335e-06,2.0092883333333335e-08,3.0,13th Gen Intel(R) Core(TM) i7-13700,4,12,107.9,4,0.3725
+fastqc (2),9.663107083333334e-06,2.0343383333333334e-08,3.0,13th Gen Intel(R) Core(TM) i7-13700,4,12,109.4,4,0.3725
+fastqc (3),9.091967083333333e-06,1.9140983333333333e-08,3.0,13th Gen Intel(R) Core(TM) i7-13700,4,12,102.2,4,0.3725
