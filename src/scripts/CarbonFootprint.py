@@ -87,7 +87,7 @@ def parse_trace_file(filepath, core_powerdraw, memory_powerdraw):
 
 
 def write_trace_file(trace_file, records):
-    output_file_name = f"output/{trace_file}-trace.txt"
+    output_file_name = f"output/{trace_file}-trace.csv"
 
     with open(output_file_name, "w") as file:
         file.write(f"{HEADERS}\n")
