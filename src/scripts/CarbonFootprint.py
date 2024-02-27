@@ -22,6 +22,53 @@ def read_config(profile):
     DELIMITER = read_config_value(profile, "delimiter")
 
 
+def get_ci_for_interval(start, end, ci):
+    # I need to figure out how to deal with seconds and ms, and factor that into these calculations !!
+
+    # 16:42 -> 18:05 (2) = 60 + 18 + 5 => 83
+    # ci for period = (18/83 * ci) + (60/83 * ci) + (5/83 * ci)
+
+    # 22:50 -> 23:35 (1) = 10 + 35 => 45
+    # ci for period = (10/45 • ci) + (35/45 * ci)
+    start_hour, start_min = start.split(":")
+    end_hour, end_min = end.split(":")
+    diff_hour = int(end_hour) - int(start_hour)
+
+    if diff_hour > 1:  # interval occurs across hours that have at least one full one between them
+        diff_overall = (60 * (diff_hour - 1)) + (60 - start_min) + end_min
+        avg_ci = (ci[start] * (start_min / diff_overall)) + (ci[end] * (end_min / diff_overall))
+
+        for i in range(1, diff_hour):
+            avg_ci += ci[str(int(start_hour) + i)] * (60 / diff_overall)
+    elif diff_hour == 1:  # interval occurs across two adjacent hours
+        diff_overall = (60 - start_min) + end_min
+        avg_ci = (ci[start] * (start_min / diff_overall)) + (ci[end] * (end_min / diff_overall))
+    else:  # interval occurs within an hour (more complex for 30 minute intervals)
+        avg_ci = ci[start_hour]
+
+    return avg_ci
+
+
+def make_ci_map(filename):
+    with open(filename, 'r') as file:
+        raw = file.readlines()
+        header = raw[0]
+        data = raw[1]
+
+    start_i = header.index("start")
+    # end_i = header.index("end")
+    value_i = header.index("actual")
+    ci_map = {}
+
+    for row in data:
+        parts = row.split(",")
+        key = parts[start_i]
+        value = parts[value_i]
+        ci_map[key] = value
+
+    return ci_map
+
+
 # PSF is not used as calculating CO2e of 1 pipeline run
 def calculate_task_consumption_ga(record: CarbonRecord):
     # Time (h)
@@ -57,6 +104,34 @@ def calculate_carbon_footprint(records, ci, pue):
         energy_pue = energy * float(pue)
         memory_pue = memory * float(pue)
         task_footprint = energy_pue * float(ci)
+        record.set_energy(energy_pue)
+        record.set_co2e(task_footprint)
+
+        total_energy += energy
+        total_energy_pue += energy_pue
+        total_memory_energy += memory
+        total_memory_energy_pue += memory_pue
+        total_carbon_emissions += task_footprint
+
+    return (total_energy, total_energy_pue, total_memory_energy, total_memory_energy_pue, total_carbon_emissions)
+
+
+def calculate_carbon_footprint_interval(records, pue, interval_filename):
+    total_energy = 0.0
+    total_energy_pue = 0.0
+    total_memory_energy = 0.0
+    total_memory_energy_pue = 0.0
+    total_carbon_emissions = 0.0
+    ci_map = make_ci_map(interval_filename)
+
+    for record in records:
+        task_avg_ci = get_ci_for_interval(record.get_start(), record.get_complete(), ci_map)
+
+        # Calculate Task & Memory Energy Consumption using Green Algorithms Method
+        (energy, memory) = calculate_task_consumption_ga(record)
+        energy_pue = energy * float(pue)
+        memory_pue = memory * float(pue)
+        task_footprint = energy_pue * float(task_avg_ci)
         record.set_energy(energy_pue)
         record.set_co2e(task_footprint)
 
@@ -131,7 +206,10 @@ if __name__ == '__main__':
     summary += f"- memory-power-draw: {mem_powerdraw}\n"
     summary += f"- config-profile: {config_profile}\n"
 
-    (energy, energy_pue, memory, memory_pue, carbon_emissions) = calculate_carbon_footprint(records, ci, pue)
+    if ci.isdigit():
+        (energy, energy_pue, memory, memory_pue, carbon_emissions) = calculate_carbon_footprint(records, ci, pue)
+    else:
+        (energy, energy_pue, memory, memory_pue, carbon_emissions) = calculate_carbon_footprint_interval(records, pue, ci)
 
     summary += "\nOverall:\n"
     summary += f"- Energy Consumption (exc. PUE): {energy}kWh\n"

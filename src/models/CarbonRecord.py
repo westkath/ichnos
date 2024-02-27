@@ -7,10 +7,10 @@ class CarbonRecord:
         self._co2e = co2e
         self._realtime = realtime
 
-        # if start is not None and complete is not None:
-        #     self._start = start
-        #     self._complete = complete
-        #     self._time_diff = (complete - start).total_seconds()
+        if start is not None and complete is not None:
+            self._start = start
+            self._complete = complete
+            self._time_diff = (complete - start).total_seconds()
 
         self._core_count = core_count
         self._core_powerdraw = core_powerdraw
@@ -24,6 +24,12 @@ class CarbonRecord:
 
     def get_core_count(self):
         return self._core_count
+
+    def get_start(self):
+        return self._start
+
+    def get_complete(self):
+        return self._complete
 
     def get_cpu_powerdraw(self):
         return self._core_powerdraw
