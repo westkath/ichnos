@@ -27,3 +27,7 @@ class IntensityInterval:
 
     def __str__(self):
         return f"{self._date},{self._start},{self._end},{self._forecast},{self._actual},{self._index}"
+
+
+def make_intensity_interval(start, end, actual):
+    return IntensityInterval(None, start, end, None, actual, None)

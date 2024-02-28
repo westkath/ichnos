@@ -3,7 +3,7 @@ import requests
 import json 
 import sys
 import re 
-from src.models.IntensityInterval import IntensityInterval
+from src.models.IntensityInterval import IntensityInterval, make_intensity_interval
 
 
 # Constants
