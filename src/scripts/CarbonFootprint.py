@@ -2,6 +2,7 @@ from src.models.TraceRecord import TraceRecord
 from src.models.CarbonRecord import CarbonRecord, HEADERS
 import sys
 import configparser
+import datetime as time
 
 
 # Default Config Values
@@ -22,29 +23,33 @@ def read_config(profile):
     DELIMITER = read_config_value(profile, "delimiter")
 
 
+def to_timestamp(ms):
+    return time.datetime.fromtimestamp(float(ms) / 1000.0, tz=time.timezone.utc)
+
+
+# currently only works for CI at hourly intervals, rather than half-hourly windows
 def get_ci_for_interval(start, end, ci):
-    # I need to figure out how to deal with seconds and ms, and factor that into these calculations !!
-
-    # 16:42 -> 18:05 (2) = 60 + 18 + 5 => 83
-    # ci for period = (18/83 * ci) + (60/83 * ci) + (5/83 * ci)
-
-    # 22:50 -> 23:35 (1) = 10 + 35 => 45
-    # ci for period = (10/45 • ci) + (35/45 * ci)
-    start_hour, start_min = start.split(":")
-    end_hour, end_min = end.split(":")
+    start_ts = to_timestamp(start)
+    end_ts = to_timestamp(end)
+    start_hour = start_ts.hour
+    start_min = start_ts.minute
+    end_hour = end_ts.hour
+    end_min = end_ts.minute
     diff_hour = int(end_hour) - int(start_hour)
+    start_key = f"{str(start_hour).zfill(2)}:00"
+    end_key = f"{str(end_hour).zfill(2)}:00"
 
     if diff_hour > 1:  # interval occurs across hours that have at least one full one between them
         diff_overall = (60 * (diff_hour - 1)) + (60 - start_min) + end_min
-        avg_ci = (ci[start] * (start_min / diff_overall)) + (ci[end] * (end_min / diff_overall))
+        avg_ci = (ci[start_key] * (start_min / diff_overall)) + (ci[end_key] * (end_min / diff_overall))
 
         for i in range(1, diff_hour):
-            avg_ci += ci[str(int(start_hour) + i)] * (60 / diff_overall)
+            avg_ci += ci[f"{str(int(start_hour) + i)}:00"] * (60 / diff_overall)
     elif diff_hour == 1:  # interval occurs across two adjacent hours
         diff_overall = (60 - start_min) + end_min
-        avg_ci = (ci[start] * (start_min / diff_overall)) + (ci[end] * (end_min / diff_overall))
+        avg_ci = (ci[start_key] * (start_min / diff_overall)) + (ci[end_key] * (end_min / diff_overall))
     else:  # interval occurs within an hour (more complex for 30 minute intervals)
-        avg_ci = ci[start_hour]
+        avg_ci = ci[start_key]
 
     return avg_ci
 
@@ -52,18 +57,19 @@ def get_ci_for_interval(start, end, ci):
 def make_ci_map(filename):
     with open(filename, 'r') as file:
         raw = file.readlines()
-        header = raw[0]
-        data = raw[1]
+        header = [val.strip() for val in raw[0].split(",")]
+        data = raw[1:]
 
     start_i = header.index("start")
     # end_i = header.index("end")
     value_i = header.index("actual")
+    
     ci_map = {}
 
     for row in data:
         parts = row.split(",")
         key = parts[start_i]
-        value = parts[value_i]
+        value = float(parts[value_i])
         ci_map[key] = value
 
     return ci_map
@@ -209,7 +215,8 @@ if __name__ == '__main__':
     if ci.isdigit():
         (energy, energy_pue, memory, memory_pue, carbon_emissions) = calculate_carbon_footprint(records, ci, pue)
     else:
-        (energy, energy_pue, memory, memory_pue, carbon_emissions) = calculate_carbon_footprint_interval(records, pue, ci)
+        ci_filename = f"data/intensity/{ci}.csv"
+        (energy, energy_pue, memory, memory_pue, carbon_emissions) = calculate_carbon_footprint_interval(records, pue, ci_filename)
 
     summary += "\nOverall:\n"
     summary += f"- Energy Consumption (exc. PUE): {energy}kWh\n"

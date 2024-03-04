@@ -10,7 +10,9 @@ class CarbonRecord:
         if start is not None and complete is not None:
             self._start = start
             self._complete = complete
-            self._time_diff = (complete - start).total_seconds()
+        else:
+            self._start = None
+            self._complete = None
 
         self._core_count = core_count
         self._core_powerdraw = core_powerdraw
