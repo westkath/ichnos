@@ -47,12 +47,7 @@ class TraceRecord:
             #     value = datetime.strptime(value, "%Y-%m-%d %H:%M:%S.%f")
             elif field == "duration" or field == "realtime":  # format (xh) (ym) (zs)
                 parts = value.split(" ")
-                if len(parts) == 1:
-                    value = float(parts[0][:-1])
-                elif len(parts) == 2:
-                    value = (float(parts[0][:-1]) * 60) + float(parts[1][:-1])
-                elif len(parts) == 3:
-                    value = (float(parts[0][:-1]) * 60 * 60) + (float(parts[1][:-1]) * 60) + float(parts[2][:-1])
+                value = float(value.strip())
             elif field == "%cpu":  # format x.y%
                 value = float(value[:-1])
             elif field == "cpus":

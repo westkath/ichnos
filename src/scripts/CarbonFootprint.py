@@ -41,13 +41,14 @@ def get_ci_for_interval(start, end, ci):
 
     if diff_hour > 1:  # interval occurs across hours that have at least one full one between them
         diff_overall = (60 * (diff_hour - 1)) + (60 - start_min) + end_min
-        avg_ci = (ci[start_key] * (start_min / diff_overall)) + (ci[end_key] * (end_min / diff_overall))
+        avg_ci = (ci[start_key] * ((60 - start_min) / diff_overall)) + (ci[end_key] * (end_min / diff_overall))
 
         for i in range(1, diff_hour):
-            avg_ci += ci[f"{str(int(start_hour) + i)}:00"] * (60 / diff_overall)
+            key = f"{str(int(start_hour) + i).zfill(2)}:00"
+            avg_ci += ci[key] * (60 / diff_overall)
     elif diff_hour == 1:  # interval occurs across two adjacent hours
         diff_overall = (60 - start_min) + end_min
-        avg_ci = (ci[start_key] * (start_min / diff_overall)) + (ci[end_key] * (end_min / diff_overall))
+        avg_ci = (ci[start_key] * ((60 - start_min) / diff_overall)) + (ci[end_key] * (end_min / diff_overall))
     else:  # interval occurs within an hour (more complex for 30 minute intervals)
         avg_ci = ci[start_key]
 
@@ -140,6 +141,7 @@ def calculate_carbon_footprint_interval(records, pue, interval_filename):
         task_footprint = energy_pue * float(task_avg_ci)
         record.set_energy(energy_pue)
         record.set_co2e(task_footprint)
+        record.set_avg_ci(task_avg_ci)
 
         total_energy += energy
         total_energy_pue += energy_pue
@@ -167,8 +169,8 @@ def parse_trace_file(filepath, core_powerdraw, memory_powerdraw):
     return records
 
 
-def write_trace_file(trace_file, records):
-    output_file_name = f"output/{trace_file}-trace.csv"
+def write_trace_file(trace_file, ci, records):
+    output_file_name = f"output/{trace_file}-{ci}-trace.csv"
 
     with open(output_file_name, "w") as file:
         file.write(f"{HEADERS}\n")
@@ -177,8 +179,8 @@ def write_trace_file(trace_file, records):
             file.write(f"{record}\n")
 
 
-def write_summary_file(trace_file, content):
-    output_file_name = f"output/{trace_file}-summary.txt"
+def write_summary_file(trace_file, ci, content):
+    output_file_name = f"output/{trace_file}-{ci}-summary.txt"
 
     with open(output_file_name, "w") as file:
         file.write(content)
@@ -227,5 +229,5 @@ if __name__ == '__main__':
 
     # Report Carbon Footprint
     print(summary)
-    write_summary_file(filename, summary)
-    write_trace_file(filename, records)
+    write_summary_file(filename, ci, summary)
+    write_trace_file(filename, ci, records)

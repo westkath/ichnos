@@ -1,4 +1,4 @@
-HEADERS = "name,co2e,energy,realtime,cpu_model,cpu_count,cpu_powerdraw,cpu_usage,memory,memory_powerdraw"
+HEADERS = "name,co2e,energy,avg_ci,realtime,cpu_model,cpu_count,cpu_powerdraw,cpu_usage,memory,memory_powerdraw"
 
 class CarbonRecord:
     def __init__(self, energy, co2e, realtime, start, complete, core_count, 
@@ -20,6 +20,8 @@ class CarbonRecord:
         self._cpu_model = cpu_model
         self._memory = memory
         self._name = name
+
+        self._avg_ci = None
 
     def get_realtime(self):
         return self._realtime
@@ -63,5 +65,8 @@ class CarbonRecord:
     def set_co2e(self, co2e):
         self._co2e = co2e
 
+    def set_avg_ci(self, ci):
+        self._avg_ci = ci
+
     def __str__(self):
-        return f"{self._name},{self._co2e},{self._energy},{self._realtime},{self._cpu_model},{self._core_count},{self._core_powerdraw},{self._cpu_usage},{self._memory},{self._memory_powerdraw}"
+        return f"{self._name},{self._co2e},{self._energy},{self._avg_ci},{self._realtime},{self._cpu_model},{self._core_count},{self._core_powerdraw},{self._cpu_usage},{self._memory},{self._memory_powerdraw}"
