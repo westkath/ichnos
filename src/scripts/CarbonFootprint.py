@@ -27,6 +27,26 @@ def to_timestamp(ms):
     return time.datetime.fromtimestamp(float(ms) / 1000.0, tz=time.timezone.utc)
 
 
+# half hourly code -- deal with start and end date diff ? 
+# hourly code -- as above
+# shorter methods, perhaps take a lot of the utils out and make better configuration methods, e.g. for the config!! 
+
+def get_ci_for_interval_half_hourly(date, start, end, ci_map):
+    pass
+
+
+def get_ci_for_interval_hourly(date, start, end, ci_map):
+    pass
+
+
+def parse_ci_intervals_hourly(filename):
+    pass
+
+
+def parse_ci_intervals_half_hourly(filename):
+    pass
+
+
 # currently only works for CI at hourly intervals, rather than half-hourly windows
 def get_ci_for_interval(start, end, ci):
     start_ts = to_timestamp(start)
@@ -61,15 +81,16 @@ def make_ci_map(filename):
         header = [val.strip() for val in raw[0].split(",")]
         data = raw[1:]
 
+    date_i = header.index("date")
     start_i = header.index("start")
-    # end_i = header.index("end")
     value_i = header.index("actual")
     
     ci_map = {}
 
     for row in data:
         parts = row.split(",")
-        key = parts[start_i]
+        date = parts[date_i]
+        key = f"{date.replace('/', '')}|{parts[start_i]}"
         value = float(parts[value_i])
         ci_map[key] = value
 

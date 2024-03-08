@@ -1,5 +1,8 @@
 import sys
 
+# implement method to convert half-hourly intervals to hourly intervals ci data file
+# take the average value across each half hour and then combine them for the hourly entry !
+
 def create_trace_file(filename, diff, delim, operator, new_filename):
     with open(filename, 'r') as file:
         raw = file.readlines()
