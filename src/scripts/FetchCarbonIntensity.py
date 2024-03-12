@@ -3,6 +3,7 @@
 
 # Imports
 from src.models.IntensityInterval import IntensityInterval
+from datetime import datetime, date, timedelta
 import sys
 import re
 import requests
@@ -26,24 +27,33 @@ MINS = "mins"
 
 
 # Functions
-def within_bound(interval, start, end):
-    print(f"interval {interval} start {start} end {end}")
-    pass 
+def to_timestamp_from_dict(time):
+    stamp = datetime.strptime(
+        f"{time[DAY]}/{time[MONTH]}/{time[YEAR]} {time[HOUR]}:{time[MINS]}", 
+        "%d/%m/%Y %H:%M")
+    return stamp.timestamp() * 1000
 
-# write out all conditions 
-# yyyy == / between
-# mm between
-# dd between 
-# time interval too
-# data format
-# interval {'from': '2024-03-07T23:00Z', 'to': '2024-03-07T23:30Z', 
-# 'intensity': {'forecast': 77, 'actual': 66, 'index': 'low'}} 
-# start {'year': '2024', 'month': '03', 'day': '07', 'hour': '00', 'mins': '00'} 
-# end {'year': '2024', 'month': '03', 'day': '07', 'hour': '23', 'mins': '00'}
-# interval {'from': '2024-03-07T23:30Z', 'to': '2024-03-08T00:00Z', 
-# 'intensity': {'forecast': 76, 'actual': 69, 'index': 'low'}} 
-# start {'year': '2024', 'month': '03', 'day': '07', 'hour': '00', 'mins': '00'} 
-# end {'year': '2024', 'month': '03', 'day': '07', 'hour': '23', 'mins': '00'}
+
+def to_timestamp_from_str(time):
+    stamp = datetime.strptime(time, "%Y-%m-%dT%H:%MZ")
+    return stamp.timestamp() * 1000
+
+
+def within_bound(interval, start, end):
+    interval_start = to_timestamp_from_str(interval["from"])
+    interval_end = to_timestamp_from_str(interval["to"])
+    start_stamp = to_timestamp_from_dict(start)
+    end_stamp = to_timestamp_from_dict(end)
+    flag = 0
+
+    if interval_start <= start_stamp and interval_end > start_stamp:
+        flag = 1
+    elif interval_start >= start_stamp and interval_end <= end_stamp:
+        flag = 1
+    elif interval_start < end_stamp and interval_end >= end_stamp:
+        flag = 1
+
+    return flag
 
 
 def make_ci_interval_national_grid(data):
@@ -57,7 +67,7 @@ def make_ci_interval_national_grid(data):
 
 
 def get_carbon_intensity_national_grid_for_date(date):
-    url = f"{NG_BASE_URL}{NG_ENDPOINT_INTENSITY_DATE}/{date[YEAR]}-{date[MONTH]}-{date[DAY]}" # date reformatting
+    url = f"{NG_BASE_URL}{NG_ENDPOINT_INTENSITY_DATE}/{date.year}-{date.month}-{date.day}"
     response = requests.get(url=url, headers=HEADERS)
     data = response.json()
     return data["data"]
@@ -66,21 +76,37 @@ def get_carbon_intensity_national_grid_for_date(date):
 def fetch_carbon_intensity_national_grid(start, end):
     data = []
 
-    #for _ in range(0, 3): # for each day, get data, sort for if same day, two days, longer period of time ? limit ?? 
-    day_data = get_carbon_intensity_national_grid_for_date(start)
-    interval = [entry for entry in day_data if within_bound(entry, start, end)]
-    day_intervals = [make_ci_interval_national_grid(entry) for entry in interval]
-    data.extend(day_intervals)
+    start_day = date(int(start[YEAR]), int(start[MONTH]), int(start[DAY]))
+    end_day = date(int(end[YEAR]), int(end[MONTH]), int(end[DAY]))
+    iter_day = start_day
+
+    while iter_day <= end_day:
+        day_data = get_carbon_intensity_national_grid_for_date(iter_day)
+        interval = [entry for entry in day_data if within_bound(entry, start, end)]
+        day_intervals = [make_ci_interval_national_grid(entry) for entry in interval]
+        data.extend(day_intervals)
+
+        iter_day += timedelta(days=1)
 
     return data
 
 
 def fetch_carbon_intensity_electricity_maps(start, end):
+    print("[FetchCarbonIntensity] TBC this feature has not been implemented yet...")
     pass
 
 
-def report_carbon_intensity_data(data, start, end):
-    pass
+def report_carbon_intensity_data(data, source, start, end):
+    out_file_name = f"ci-{source}-{start[YEAR]}{start[MONTH]}{start[DAY]}{start[HOUR]}{start[MINS]}-{end[YEAR]}{end[MONTH]}{end[DAY]}{end[HOUR]}{end[MINS]}.csv"
+    out_file_path = "data/intensity/" + out_file_name
+
+    with open(out_file_path, 'w+') as file:
+        file.write("date,start,end,forecast,actual,index\n")
+
+        for interval in data:
+            file.write(f"{interval}\n")
+
+    print(f"[FetchCarbonIntensity] Reported Carbon Intensity Data for Requested Interval [{out_file_name}]")
 
 
 def print_usage_exit():
@@ -139,4 +165,4 @@ if __name__ == "__main__":
     if settings[SOURCE] == NATIONAL_GRID:
         data = fetch_carbon_intensity_national_grid(settings[START], settings[END])
 
-    report_carbon_intensity_data(data, settings[START], settings[END])
+    report_carbon_intensity_data(data, settings[SOURCE], settings[START], settings[END])
