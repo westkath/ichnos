@@ -1,10 +1,26 @@
 import sys
+import re
+from datetime import datetime
 
-# implement method to convert half-hourly intervals to hourly intervals ci data file
-# take the average value across each half hour and then combine them for the hourly entry !
 
-def create_trace_file(filename, diff, delim, operator, new_filename):
-    with open(filename, 'r') as file:
+# Constants
+CHANGE_TIME = "change-time"
+CHANGE_TIME_MS = "change-time-ms"
+CHANGE_START = "change-start"
+CHANGE_START_MS = "change-start-ms"
+COMMANDS = [CHANGE_TIME, CHANGE_TIME_MS, CHANGE_START, CHANGE_START_MS]
+COMMAND = "command"
+TRACE_FILE = "trace-file"
+DELIMITER = "delimiter"
+DIRECTION = "direction"
+NEW_START_MS = "new-start-ms"
+SHIFT_MS = "shift-ms"
+ORIGINAL_START_MS = "original-start-ms"
+
+
+# Functions
+def create_trace_file(trace_filepath, delim, offset, new_filename):
+    with open(trace_filepath, 'r') as file:
         raw = file.readlines()
         header = raw[0].split(delim)
         data = raw[1:]
@@ -17,41 +33,112 @@ def create_trace_file(filename, diff, delim, operator, new_filename):
 
         for row in data:
             parts = row.split(delim)
-            start = float(parts[start_i])
-            end = float(parts[end_i])
-            if operator == '+':
-                new_start = start + diff
-                new_end = end + diff
-            else:
-                new_start = start - diff
-                new_end = end - diff
+            start = int(parts[start_i])
+            end = int(parts[end_i])
+            new_start = start + offset
+            new_end = end + offset
+            print(f"start {start} new_start {new_start} end {end} new_end {new_end}")
             parts[start_i] = str(new_start)
             parts[end_i] = str(new_end)
             new_row = delim.join(parts)
             file.write(f"{new_row}")
 
+    print(f"[Convertor] Find converted trace file [{new_filename}]")
+
+
+def print_usage_exit():
+    usage = "[Convertor] $ Expected Use - Arguments Format: <change-command> <trace-file-name.end> <delimiter> <direction|new-start> <shift|original-start>"
+    example_time = "[Convertor] $ adjust file by days-hours-minutes: change-time test.csv , + 00-06-30"
+    example_stamp = "[Convertor] $ adjust file by ms: change-ms test.csv , + 23400000"
+    example_start = "[Convertor] $ adjust file start time using date: change-start test.csv , 2024-03-12:09-00 2024-01-01:10-00"
+    example_start_ms = "[Convertor] $ adjust file start time using ms: change-start-ms test.csv , 2024-03-12:09-00 1701083201729"
+
+    print(usage)
+    print(example_time)
+    print(example_stamp)
+    print(example_start)
+    print(example_start_ms)
+
+    exit(-1)
+
+
+def to_timestamp_from_date(time):
+    stamp = datetime.strptime(time, "%Y-%m-%d:%H-%M")
+    return stamp.timestamp() * 1000
+
+
+def to_timestamp_from_dd_hh_mm(time):
+    stamp = datetime.strptime(time, "%d-%H-%M")
+    return stamp.timestamp() * 1000
+
+
+def validate_arguments(args):
+    if len(args) != 5:
+        print_usage_exit()
+
+    if args[0] not in COMMANDS:
+        print_usage_exit()
+
+    date_pattern = re.compile("^\d{4}-\d{2}-\d{2}:\d{2}-\d{2}$")
+    dd_hh_mm_pattern = re.compile("^\d{2}-\d{2}-\d{2}$")
+
+    if args[3] != "+" or args[3] != "-":
+        if re.match(date_pattern, args[3]) is None or re.match(date_pattern, args[4]) is None:
+            print_usage_exit()
+        else:
+            new_start = to_timestamp_from_date(args[3])
+
+            if re.match(date_pattern, args[4]) is None:
+                original_start = int(args[4])
+            else:
+                original_start = to_timestamp_from_date(args[4])
+
+            direction = None
+            shift_ms = None
+    else:
+        direction = args[3].strip()
+        new_start = None
+        original_start = None
+
+        if re.match(dd_hh_mm_pattern, args[4]) is None:
+            shift_ms = int(args[4])
+        else:
+            shift_ms = to_timestamp_from_dd_hh_mm(args[4])  # convert to ms ?
+
+    return {
+        COMMAND: args[0],
+        TRACE_FILE: f"data/trace/{args[1]}",
+        DELIMITER: args[2],
+        DIRECTION: direction,
+        NEW_START_MS: new_start,
+        SHIFT_MS: shift_ms,
+        ORIGINAL_START_MS: original_start
+    }
+
+
+# Main
 if __name__ == "__main__":
-    usage = "carbon-footprint $ python -m src.scripts.Convertor <trace-file-name.del> <+|-> <hours> <mins> <delim>"
-    example = "carbon-footprint $ python -m src.scripts.Convertor test.csv + 2 30 ;"
-
-    # Parse Arguments
     arguments = sys.argv[1:]
+    settings = validate_arguments(arguments)
 
-    if len(arguments) != 5:
-        print(usage)
-        print(example)
-        exit(-1)
-    elif arguments[1] not in ['+', '-']:
-        print(usage)
-        print(example)
-        exit(-1)
+    command = settings[COMMAND]
+    filepath = settings[TRACE_FILE]
+    filename = filepath.split("/")[2].split(".")
+    delimiter = settings[DELIMITER]
+    output_filename = f"data/trace/{filename[0]}"
+    offset = None
 
-    filepath = f"data/trace/{arguments[0]}"
-    operator = arguments[1].strip()
-    hours = int(arguments[2])
-    mins = int(arguments[3])
-    hours_mins_ms = (hours * 60 * 60 * 1000) + (mins * 60 * 1000)
-    delim = arguments[4]
-    new_filename = filepath.split(".")[0] + f"{arguments[1]}{str(hours).zfill(2)}-{str(mins).zfill(2)}" + "." + filepath.split(".")[1]
+    if command == CHANGE_TIME or command == CHANGE_TIME_MS:
+        operator = settings[DIRECTION]
+        offset = settings[SHIFT_MS]
 
-    create_trace_file(filepath, hours_mins_ms, delim, operator, new_filename)
+        if operator == '-':
+            offset *= -1
+    elif command == CHANGE_START or command == CHANGE_START_MS: 
+        offset = abs(settings[NEW_START_MS] - settings[ORIGINAL_START_MS])
+
+        if settings[NEW_START_MS] < settings[ORIGINAL_START_MS]:
+            offset *= -1
+
+    output_filename += f"-{command}-{offset}.{filename[1]}"
+    create_trace_file(filepath, delimiter, offset, output_filename)

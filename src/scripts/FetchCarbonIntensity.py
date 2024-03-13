@@ -111,8 +111,8 @@ def report_carbon_intensity_data(data, source, start, end):
 
 def print_usage_exit():
     print("[FetchCarbonIntensity] Usage: py FetchCarbonIntensity.py <source> <YYYY-MM-DD:HH-MM> <YYYY-MM-DD:HH-MM>")
-    print(f"[FetchCarbonIntensity] $ py FetchCarbonIntensity.py {ELECTRICITY_MAPS} 01-03-2024:09-00 03-03-2024:17-00")
-    print(f"[FetchCarbonIntensity] $ py FetchCarbonIntensity.py {NATIONAL_GRID} 01-03-2024:09-00 01-03-2024:17-00")
+    print(f"[FetchCarbonIntensity] $ py FetchCarbonIntensity.py {ELECTRICITY_MAPS} 2024-03-01:09-00 2024-03-03:17-00")
+    print(f"[FetchCarbonIntensity] $ py FetchCarbonIntensity.py {NATIONAL_GRID} 2024-03-01:09-00 2024-03-01:17-00")
     exit(-1)
 
 

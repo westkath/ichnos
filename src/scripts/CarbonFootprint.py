@@ -47,7 +47,7 @@ def parse_ci_intervals_half_hourly(filename):
     pass
 
 
-# currently only works for CI at hourly intervals, rather than half-hourly windows
+# DEAL WITH HALF-HOURLY INTERVALS IF NEEDED
 def get_ci_for_interval(start, end, ci):
     start_ts = to_timestamp(start)
     end_ts = to_timestamp(end)
