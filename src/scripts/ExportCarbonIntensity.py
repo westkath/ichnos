@@ -149,10 +149,8 @@ def parse_command(command):
     if parts[2] not in RECOGNISED_DFS:
         print_usage_exit()
 
-    start_date, _ = parts[0].split(":")
-    start_date_parts = start_date.split("-")
-    end_date, _ = parts[1].split(":")
-    end_date_parts = end_date.split("-")
+    start_date_parts = parts[0].split("-")
+    end_date_parts = parts[1].split("-")
     frame = parts[2]
 
     return {
@@ -174,7 +172,7 @@ def parse_arguments(arguments):
     if len(arguments) != 3:
         print_usage_exit()
 
-    timestamp_pattern = re.compile("^\d{4}-\d{2}-\d{2}:\d{2}-\d{2}$")
+    timestamp_pattern = re.compile("^\d{4}-\d{2}-\d{2}$")
 
     if re.match(timestamp_pattern, arguments[0]) is None or re.match(timestamp_pattern, arguments[1]) is None:
         print_usage_exit()
@@ -182,10 +180,8 @@ def parse_arguments(arguments):
     if arguments[2] not in RECOGNISED_DFS:
         print_usage_exit()
 
-    start_date, _ = arguments[0].split(":")
-    start_date_parts = start_date.split("-")
-    end_date, _ = arguments[1].split(":")
-    end_date_parts = end_date.split("-")
+    start_date_parts = arguments[0].split("-")
+    end_date_parts = arguments[1].split("-")
     frame = arguments[2]
 
     return {
@@ -205,13 +201,13 @@ def parse_arguments(arguments):
 
 def setup_data():
     # UK Data
-    uk_ci_df = prepare_region_gb('data/GB_2023_hourly.csv', '/')
+    uk_ci_df = prepare_region_gb('data/emaps/GB_2023_hourly.csv', '/')
     # France Data
-    fr_ci_df = prepare_region('data/FR_2023_hourly.csv')
+    fr_ci_df = prepare_region('data/emaps/FR_2023_hourly.csv')
     # Germany Data
-    de_ci_df = prepare_region('data/DE_2023_hourly.csv')
+    de_ci_df = prepare_region('data/emaps/DE_2023_hourly.csv')
     # California Data
-    ca_ci_df = prepare_region('data/US-CAL-CISO_2023_hourly.csv')
+    ca_ci_df = prepare_region('data/emaps/US-CAL-CISO_2023_hourly.csv')
 
     return (uk_ci_df, fr_ci_df, de_ci_df, ca_ci_df)
 

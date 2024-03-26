@@ -35,15 +35,16 @@ def create_trace_file(trace_filepath, delim, offset, new_filename):
             parts = row.split(delim)
             start = int(parts[start_i])
             end = int(parts[end_i])
-            new_start = start + offset
-            new_end = end + offset
-            print(f"start {start} new_start {new_start} end {end} new_end {new_end}")
+            new_start = int(start + offset)
+            new_end = int(end + offset)
             parts[start_i] = str(new_start)
             parts[end_i] = str(new_end)
             new_row = delim.join(parts)
             file.write(f"{new_row}")
 
     print(f"[Convertor] Find converted trace file [{new_filename}]")
+
+    return new_filename.split("/")[-1]
 
 
 def print_usage_exit():
@@ -69,7 +70,7 @@ def to_timestamp_from_date(time):
 
 def to_timestamp_from_dd_hh_mm(time):
     stamp = datetime.strptime(time[3:], "%H-%M")
-    return stamp.timestamp() * 1000
+    return (stamp.hour * 3600000) + (stamp.minute * 60000)
 
 
 def validate_arguments(args):
@@ -116,11 +117,7 @@ def validate_arguments(args):
     }
 
 
-# Main
-if __name__ == "__main__":
-    arguments = sys.argv[1:]
-    settings = validate_arguments(arguments)
-
+def convert(settings):
     command = settings[COMMAND]
     filepath = settings[TRACE_FILE]
     filename = filepath.split("/")[2].split(".")
@@ -140,5 +137,19 @@ if __name__ == "__main__":
         if settings[NEW_START_MS] < settings[ORIGINAL_START_MS]:
             offset *= -1
 
-    output_filename += f"-{command}-{offset}.{filename[1]}"
-    create_trace_file(filepath, delimiter, offset, output_filename)
+    output_filename += f"-{command}-{int(offset)}.{filename[1]}"
+    return create_trace_file(filepath, delimiter, offset, output_filename)
+
+def convertor(command):
+    parts = command.split(" ")
+    settings = validate_arguments(parts)
+
+    return convert(settings)
+
+
+# Main
+if __name__ == "__main__":
+    arguments = sys.argv[1:]
+    settings = validate_arguments(arguments)
+
+    convert(settings)

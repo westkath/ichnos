@@ -189,8 +189,8 @@ def parse_trace_file(filepath, core_powerdraw, memory_powerdraw):
     return records
 
 
-def write_trace_file(trace_file, ci, records):
-    output_file_name = f"output/{trace_file}-{ci}-trace.csv"
+def write_trace_file(folder, trace_file, records):
+    output_file_name = f"{folder}/{trace_file}-trace.csv"
 
     with open(output_file_name, "w") as file:
         file.write(f"{HEADERS}\n")
@@ -199,30 +199,31 @@ def write_trace_file(trace_file, ci, records):
             file.write(f"{record}\n")
 
 
-def write_summary_file(trace_file, ci, content):
-    output_file_name = f"output/{trace_file}-{ci}-summary.txt"
+def write_summary_file(folder, trace_file, content):
+    output_file_name = f"{folder}/{trace_file}-summary.txt"
 
     with open(output_file_name, "w") as file:
         file.write(content)
 
 
-# Main Script
-if __name__ == '__main__':
-    usage = "carbon-footprint $ python -m src.scripts.CarbonFootprint <trace-file-name> <carbon-intensity> <power-usage-effectiveness> <core-power-draw> <memory-power-draw> <config-profile>"
-    example = "carbon-footprint $ python -m src.scripts.CarbonFootprint test 475 1.67 12 0.3725 default"
+def print_usage_exit():
+    usage = "carbon-footprint $ python -m src.scripts.CarbonFootprint <trace-file-name> <carbon-intensity> <power-usage-effectiveness> <core-power-draw> <memory-power-draw> <config-profile> <output-folder>"
+    example = "carbon-footprint $ python -m src.scripts.CarbonFootprint test.csv 475 1.67 12 0.3725 default output"
 
-    # Parse Arguments
-    arguments = sys.argv[1:]
+    print(usage)
+    print(example)
+    exit(-1)
 
-    if len(arguments) != 6:
-        print(usage)
-        print(example)
-        exit(-1)
 
-    filename, ci, pue, core_powerdraw, mem_powerdraw, config_profile = arguments
-
+def calculate_carbon_footprint(filename, ci, pue, core_powerdraw, mem_powerdraw, config_profile, folder):
     if config_profile != DEFAULT:
         read_config(config_profile)
+
+    if len(filename.split(".")) > 1:
+        filename = filename.split(".")[-2]
+
+    if len(ci.split(".")) > 1:
+        ci = ci.split(".")[-2]
 
     records = parse_trace_file(f"data/trace/{filename}.{FILE}", core_powerdraw, mem_powerdraw)
 
@@ -248,6 +249,32 @@ if __name__ == '__main__':
     summary += f"- Carbon Emissions: {carbon_emissions}gCO2e"
 
     # Report Carbon Footprint
-    print(summary)
-    write_summary_file(filename, ci, summary)
-    write_trace_file(filename, ci, records)
+    write_summary_file(folder, filename, summary)
+    write_trace_file(folder, filename, records)
+
+    return summary
+
+
+def get_carbon_footprint(command):
+    parts = command.split(" ")
+
+    if len(parts) != 7:
+        print_usage_exit()
+
+    filename, ci, pue, core_powerdraw, mem_powerdraw, config_profile, folder = parts
+
+    return calculate_carbon_footprint(filename, ci, pue, core_powerdraw, mem_powerdraw, config_profile, folder)
+
+
+# Main Script
+if __name__ == '__main__':
+
+    # Parse Arguments
+    arguments = sys.argv[1:]
+
+    if len(arguments) != 7:
+        print_usage_exit()
+
+    filename, ci, pue, core_powerdraw, mem_powerdraw, config_profile, folder = arguments
+
+    calculate_carbon_footprint(filename, ci, pue, core_powerdraw, mem_powerdraw, config_profile, folder)
