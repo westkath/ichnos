@@ -39,12 +39,33 @@ def get_ci_for_interval_hourly(date, start, end, ci_map):
     pass
 
 
-def parse_ci_intervals_hourly(filename):
-    pass
+def get_ci_file_data(filename):
+    with open(filename, 'r') as file:
+        raw = file.readlines()
+        header = [val.strip() for val in raw[0].split(",")]
+        data = raw[1:]
+
+    return (header, data)
 
 
-def parse_ci_intervals_half_hourly(filename):
-    pass
+def parse_ci_intervals(filename):
+    (header, data) = get_ci_file_data(filename)
+
+    date_i = header.index("date")
+    start_i = header.index("start")
+    value_i = header.index("actual")
+
+    ci_map = {}
+
+    for row in data:
+        parts = row.split(",")
+        date = parts[date_i]
+        # key = f"{date.replace('/', '')}:{parts[start_i].replace(':', '')}"
+        key = f"{parts[start_i]}"
+        value = float(parts[value_i])
+        ci_map[key] = value
+
+    return ci_map
 
 
 # DEAL WITH HALF-HOURLY INTERVALS IF NEEDED
@@ -73,28 +94,6 @@ def get_ci_for_interval(start, end, ci):
         avg_ci = ci[start_key]
 
     return avg_ci
-
-
-def make_ci_map(filename):
-    with open(filename, 'r') as file:
-        raw = file.readlines()
-        header = [val.strip() for val in raw[0].split(",")]
-        data = raw[1:]
-
-    date_i = header.index("date")
-    start_i = header.index("start")
-    value_i = header.index("actual")
-    
-    ci_map = {}
-
-    for row in data:
-        parts = row.split(",")
-        date = parts[date_i]
-        key = f"{date.replace('/', '')}|{parts[start_i]}"
-        value = float(parts[value_i])
-        ci_map[key] = value
-
-    return ci_map
 
 
 # PSF is not used as calculating CO2e of 1 pipeline run
@@ -150,7 +149,7 @@ def calculate_carbon_footprint_interval(records, pue, interval_filename):
     total_memory_energy = 0.0
     total_memory_energy_pue = 0.0
     total_carbon_emissions = 0.0
-    ci_map = make_ci_map(interval_filename)
+    ci_map = parse_ci_intervals(interval_filename)
 
     for record in records:
         task_avg_ci = get_ci_for_interval(record.get_start(), record.get_complete(), ci_map)

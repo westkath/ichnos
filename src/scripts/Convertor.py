@@ -68,7 +68,7 @@ def to_timestamp_from_date(time):
 
 
 def to_timestamp_from_dd_hh_mm(time):
-    stamp = datetime.strptime(time, "%d-%H-%M")
+    stamp = datetime.strptime(time[3:], "%H-%M")
     return stamp.timestamp() * 1000
 
 
@@ -82,8 +82,8 @@ def validate_arguments(args):
     date_pattern = re.compile("^\d{4}-\d{2}-\d{2}:\d{2}-\d{2}$")
     dd_hh_mm_pattern = re.compile("^\d{2}-\d{2}-\d{2}$")
 
-    if args[3] != "+" or args[3] != "-":
-        if re.match(date_pattern, args[3]) is None or re.match(date_pattern, args[4]) is None:
+    if args[3] != "+" and args[3] != "-":
+        if re.match(date_pattern, args[3]) is None or re.match(dd_hh_mm_pattern, args[4]) is None:
             print_usage_exit()
         else:
             new_start = to_timestamp_from_date(args[3])
