@@ -59,6 +59,9 @@ class CarbonRecord:
     def get_co2e(self):
         return self._co2e
 
+    def get_cpu_model(self):
+        return self._cpu_model
+
     def set_energy(self, energy):
         self._energy = energy
 

@@ -95,7 +95,7 @@ def write_carbon_intensity_data(data, settings):
     filepath = "data/intensity/"
     start = settings[START]
     end = settings[END]
-    filename = f"ci-{start[DAY]}{start[MONTH]}{start[YEAR]}-{end[DAY]}{end[MONTH]}{end[YEAR]}.csv"
+    filename = f"ci-{start[DAY]}{start[MONTH]}{start[YEAR]}-{end[DAY]}{end[MONTH]}{end[YEAR]}-{settings[DF]}.csv"
 
     concat_data = pd.concat(data, axis=0)
     concat_data.to_csv(filepath + filename, sep=",", index=False, encoding="utf-8")

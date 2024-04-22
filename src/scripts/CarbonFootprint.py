@@ -5,12 +5,22 @@ import configparser
 import datetime as time
 
 
-# Default Config Values
+# Default Values
 DEFAULT = "default"
 FILE = "csv"
 DELIMITER = ","
-
+MEMORY_COEFFICIENT = 0.392  # CCF Average (See Website)
+CPU_STATS = {DEFAULT: [65, 219]}  # Office Desktop
  
+
+def get_cpu_min_max(cpu_model):
+    if cpu_model in CPU_STATS:
+        return (CPU_STATS[cpu_model][0], CPU_STATS[cpu_model][1])
+    else:
+        print(f"Could not find CPU [{cpu_model}], please add to specs/cpu.csv for more accurate readings.")
+        return (CPU_STATS[DEFAULT][0], CPU_STATS[DEFAULT][1])
+
+
 def read_config_value(profile, entry):
    config = configparser.ConfigParser()
    config.read('config/trace.conf')
@@ -118,6 +128,24 @@ def calculate_task_consumption_ga(record: CarbonRecord):
     return (core_consumption, memory_consumption)
 
 
+def calculate_task_consumption_ccf(record: CarbonRecord):
+    # Time (h)
+    time = record.get_realtime() / 1000 / 3600  # convert from ms to h
+    # Number of Cores (int)
+    no_cores = record.get_core_count()
+    # CPU Usage (%)
+    cpu_usage = record.get_cpu_usage() / (100.0 * no_cores)
+    # Fetch Min & Max CPU Watts
+    (min_watts, max_watts) = get_cpu_min_max(record.get_cpu_model())
+    # Memory (GB)
+    memory = record.get_memory()
+    # Core Energy Consumption (without PUE)
+    core_consumption = time * (min_watts + cpu_usage * (max_watts - min_watts)) * 0.001  # convert from W to kW
+    # Memory Power Consumption (without PUE)
+    memory_consumption = memory * MEMORY_COEFFICIENT * time * 0.001  # convert from W to kW
+    return (core_consumption, memory_consumption)
+
+
 def calculate_carbon_footprint(records, ci, pue):
     total_energy = 0.0
     total_energy_pue = 0.0
@@ -141,6 +169,33 @@ def calculate_carbon_footprint(records, ci, pue):
         total_carbon_emissions += task_footprint
 
     return (total_energy, total_energy_pue, total_memory_energy, total_memory_energy_pue, total_carbon_emissions)
+
+
+def calculate_carbon_footprint_ccf(records, ci, pue):
+    total_energy = 0.0
+    total_energy_pue = 0.0
+    total_memory_energy = 0.0
+    total_memory_energy_pue = 0.0
+    total_carbon_emissions = 0.0
+
+    for record in records:
+        # Calculate Task & Memory Energy Consumptions using CCF Method
+        (energy, memory) = calculate_carbon_footprint_ccf(record)
+        energy_pue = energy * float(pue)
+        memory_pue = memory * float(pue)
+        task_footprint = energy_pue * float(ci)
+        record.set_energy(energy_pue)
+        record.set_co2e(task_footprint)
+
+        total_energy += energy
+        total_energy_pue += energy_pue
+        total_memory_energy += memory
+        total_memory_energy_pue += memory_pue
+        total_carbon_emissions += task_footprint
+
+    # TODO: add static power draw for overall disk, other considerations ?? 
+
+        return (total_energy, total_energy_pue, total_memory_energy, total_memory_energy_pue, total_carbon_emissions)
 
 
 def calculate_carbon_footprint_interval(records, pue, interval_filename):
@@ -170,6 +225,36 @@ def calculate_carbon_footprint_interval(records, pue, interval_filename):
         total_carbon_emissions += task_footprint
 
     return (total_energy, total_energy_pue, total_memory_energy, total_memory_energy_pue, total_carbon_emissions)
+
+
+def calculate_carbon_footprint_interval_ccf(records, pue, interval_filename):
+    total_energy = 0.0
+    total_energy_pue = 0.0
+    total_memory_energy = 0.0
+    total_memory_energy_pue = 0.0
+    total_carbon_emissions = 0.0
+    ci_map = parse_ci_intervals(interval_filename)
+
+    for record in records:
+        task_avg_ci = get_ci_for_interval(record.get_start(), record.get_complete(), ci_map)
+
+        # Calculate Task & Memory Energy Consumption using Green Algorithms Method
+        (energy, memory) = calculate_task_consumption_ccf(record)
+        energy_pue = energy * float(pue)
+        memory_pue = memory * float(pue)
+        task_footprint = energy_pue * float(task_avg_ci)
+        record.set_energy(energy_pue)
+        record.set_co2e(task_footprint)
+        record.set_avg_ci(task_avg_ci)
+
+        total_energy += energy
+        total_energy_pue += energy_pue
+        total_memory_energy += memory
+        total_memory_energy_pue += memory_pue
+        total_carbon_emissions += task_footprint
+
+    return (total_energy, total_energy_pue, total_memory_energy, total_memory_energy_pue, total_carbon_emissions)
+
 
 
 def parse_trace_file(filepath, core_powerdraw, memory_powerdraw):
@@ -237,9 +322,11 @@ def calculate_carbon_footprint(filename, ci, pue, core_powerdraw, mem_powerdraw,
 
     if ci.isdigit():
         (energy, energy_pue, memory, memory_pue, carbon_emissions) = calculate_carbon_footprint(records, ci, pue)
+        (ccf_energy, ccf_energy_pue, ccf_memory, ccf_memory_pue, ccf_carbon_emissions) = calculate_carbon_footprint_ccf(records, ci, pue)
     else:
         ci_filename = f"data/intensity/{ci}.csv"
         (energy, energy_pue, memory, memory_pue, carbon_emissions) = calculate_carbon_footprint_interval(records, pue, ci_filename)
+        (ccf_energy, ccf_energy_pue, ccf_memory, ccf_memory_pue, ccf_carbon_emissions) = calculate_carbon_footprint_interval_ccf(records, pue, ci_filename)
 
     summary += "\nOverall:\n"
     summary += f"- Energy Consumption (exc. PUE): {energy}kWh\n"
@@ -247,6 +334,13 @@ def calculate_carbon_footprint(filename, ci, pue, core_powerdraw, mem_powerdraw,
     summary += f"- Memory Energy Consumption (exc. PUE): {memory}kWh\n"
     summary += f"- Memory Energy Consumption (inc. PUE): {memory_pue}kWh\n"
     summary += f"- Carbon Emissions: {carbon_emissions}gCO2e"
+
+    summary += "\nCCF:\n"
+    summary += f"- Energy Consumption (exc. PUE): {ccf_energy}kWh\n"
+    summary += f"- Energy Consumption (inc. PUE): {ccf_energy_pue}kWh\n"
+    summary += f"- Memory Energy Consumption (exc. PUE): {ccf_memory}kWh\n"
+    summary += f"- Memory Energy Consumption (inc. PUE): {ccf_memory_pue}kWh\n"
+    summary += f"- Carbon Emissions: {ccf_carbon_emissions}gCO2e"
 
     # Report Carbon Footprint
     write_summary_file(folder, filename, summary)

@@ -35,8 +35,8 @@ def create_trace_file(trace_filepath, delim, offset, new_filename):
             parts = row.split(delim)
             start = int(parts[start_i])
             end = int(parts[end_i])
-            new_start = int(start + offset)
-            new_end = int(end + offset)
+            new_start = start + offset
+            new_end = end + offset
             parts[start_i] = str(new_start)
             parts[end_i] = str(new_end)
             new_row = delim.join(parts)
