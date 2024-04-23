@@ -11,7 +11,21 @@ FILE = "csv"
 DELIMITER = ","
 MEMORY_COEFFICIENT = 0.392  # CCF Average (See Website)
 CPU_STATS = {DEFAULT: [65, 219]}  # Office Desktop
- 
+
+
+# Functions
+def read_cpu_min_max():
+    global CPU_STATS
+
+    with open('data/specs/cpu.csv', 'r') as file:
+        data = file.readlines()[1:]
+
+    for line in data:
+        parts = line.split(',')
+
+        if parts[0] not in CPU_STATS:
+            CPU_STATS[parts[0]] = [int(item.strip()) for item in parts[1:]]
+
 
 def get_cpu_min_max(cpu_model):
     if cpu_model in CPU_STATS:
@@ -36,10 +50,6 @@ def read_config(profile):
 def to_timestamp(ms):
     return time.datetime.fromtimestamp(float(ms) / 1000.0, tz=time.timezone.utc)
 
-
-# half hourly code -- deal with start and end date diff ? 
-# hourly code -- as above
-# shorter methods, perhaps take a lot of the utils out and make better configuration methods, e.g. for the config!! 
 
 def get_ci_for_interval_half_hourly(date, start, end, ci_map):
     pass
@@ -78,7 +88,7 @@ def parse_ci_intervals(filename):
     return ci_map
 
 
-# DEAL WITH HALF-HOURLY INTERVALS IF NEEDED
+# TODO: DEAL WITH HALF-HOURLY INTERVALS IF NEEDED
 def get_ci_for_interval(start, end, ci):
     start_ts = to_timestamp(start)
     end_ts = to_timestamp(end)
@@ -124,6 +134,7 @@ def calculate_task_consumption_ga(record: CarbonRecord):
     core_consumption = time * (no_cores * cpu_power * cpu_usage + memory * memory_power) * 0.001  # convert from W to kW
     # Memory Consumption (without PUE)
     memory_consumption = memory * memory_power * time * 0.001  # convert from W to kW
+
     # Overall and Memory Consumption (kW) (without PUE)
     return (core_consumption, memory_consumption)
 
@@ -143,6 +154,8 @@ def calculate_task_consumption_ccf(record: CarbonRecord):
     core_consumption = time * (min_watts + cpu_usage * (max_watts - min_watts)) * 0.001  # convert from W to kW
     # Memory Power Consumption (without PUE)
     memory_consumption = memory * MEMORY_COEFFICIENT * time * 0.001  # convert from W to kW
+
+    # Overall and Memory Consumption (kW) (without PUE)
     return (core_consumption, memory_consumption)
 
 
@@ -195,7 +208,7 @@ def calculate_carbon_footprint_ccf(records, ci, pue):
 
     # TODO: add static power draw for overall disk, other considerations ?? 
 
-        return (total_energy, total_energy_pue, total_memory_energy, total_memory_energy_pue, total_carbon_emissions)
+    return (total_energy, total_energy_pue, total_memory_energy, total_memory_energy_pue, total_carbon_emissions)
 
 
 def calculate_carbon_footprint_interval(records, pue, interval_filename):
@@ -328,14 +341,14 @@ def calculate_carbon_footprint(filename, ci, pue, core_powerdraw, mem_powerdraw,
         (energy, energy_pue, memory, memory_pue, carbon_emissions) = calculate_carbon_footprint_interval(records, pue, ci_filename)
         (ccf_energy, ccf_energy_pue, ccf_memory, ccf_memory_pue, ccf_carbon_emissions) = calculate_carbon_footprint_interval_ccf(records, pue, ci_filename)
 
-    summary += "\nOverall:\n"
+    summary += "\nGreen Algorithms Method:\n"
     summary += f"- Energy Consumption (exc. PUE): {energy}kWh\n"
     summary += f"- Energy Consumption (inc. PUE): {energy_pue}kWh\n"
     summary += f"- Memory Energy Consumption (exc. PUE): {memory}kWh\n"
     summary += f"- Memory Energy Consumption (inc. PUE): {memory_pue}kWh\n"
-    summary += f"- Carbon Emissions: {carbon_emissions}gCO2e"
+    summary += f"- Carbon Emissions: {carbon_emissions}gCO2e\n"
 
-    summary += "\nCCF:\n"
+    summary += "\nCloud Carbon Footprint Method:\n"
     summary += f"- Energy Consumption (exc. PUE): {ccf_energy}kWh\n"
     summary += f"- Energy Consumption (inc. PUE): {ccf_energy_pue}kWh\n"
     summary += f"- Memory Energy Consumption (exc. PUE): {ccf_memory}kWh\n"
@@ -362,13 +375,13 @@ def get_carbon_footprint(command):
 
 # Main Script
 if __name__ == '__main__':
-
     # Parse Arguments
     arguments = sys.argv[1:]
 
     if len(arguments) != 7:
         print_usage_exit()
 
-    filename, ci, pue, core_powerdraw, mem_powerdraw, config_profile, folder = arguments
+    read_cpu_min_max()
 
+    filename, ci, pue, core_powerdraw, mem_powerdraw, config_profile, folder = arguments
     calculate_carbon_footprint(filename, ci, pue, core_powerdraw, mem_powerdraw, config_profile, folder)
