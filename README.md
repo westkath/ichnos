@@ -81,3 +81,4 @@ Overall:
   > **Nextflow enables reproducible computational workflows**
   > P. Di Tommaso, M. Chatzou, E. W. Floden, P. P. Barja, E. Palumbo, and C. Notredame,
   > Nature Biotechnology, vol. 35, no. 4, pp. 316–319, Apr. 2017, https://doi.org/10.1038/nbt.3820
+- [Carbon Footprint](src/scripts/CarbonFootprint.py) also features an adaptation of the calculation for variable compute energy usage from the [Cloud Carbon Footprint Methodology](https://www.cloudcarbonfootprint.org/docs/methodology/).
