@@ -10,7 +10,8 @@ DEFAULT = "default"
 FILE = "csv"
 DELIMITER = ","
 MEMORY_COEFFICIENT = 0.392  # CCF Average (See Website)
-CPU_STATS = {DEFAULT: [65, 219]}  # Office Desktop
+#CPU_STATS = {DEFAULT: [65, 219]}  # Office Desktop
+CPU_STATS = {DEFAULT: [37, 107]}  # Cluster in Germany
 
 
 # Functions
@@ -159,7 +160,7 @@ def calculate_task_consumption_ccf(record: CarbonRecord):
     return (core_consumption, memory_consumption)
 
 
-def calculate_carbon_footprint(records, ci, pue):
+def calculate_carbon_footprint_ci(records, ci, pue):
     total_energy = 0.0
     total_energy_pue = 0.0
     total_memory_energy = 0.0
@@ -184,7 +185,7 @@ def calculate_carbon_footprint(records, ci, pue):
     return (total_energy, total_energy_pue, total_memory_energy, total_memory_energy_pue, total_carbon_emissions)
 
 
-def calculate_carbon_footprint_ccf(records, ci, pue):
+def calculate_carbon_footprint_ccf_ci(records, ci, pue):
     total_energy = 0.0
     total_energy_pue = 0.0
     total_memory_energy = 0.0
@@ -193,7 +194,7 @@ def calculate_carbon_footprint_ccf(records, ci, pue):
 
     for record in records:
         # Calculate Task & Memory Energy Consumptions using CCF Method
-        (energy, memory) = calculate_carbon_footprint_ccf(record)
+        (energy, memory) = calculate_task_consumption_ccf(record)
         energy_pue = energy * float(pue)
         memory_pue = memory * float(pue)
         task_footprint = energy_pue * float(ci)
@@ -334,8 +335,8 @@ def calculate_carbon_footprint(filename, ci, pue, core_powerdraw, mem_powerdraw,
     summary += f"- config-profile: {config_profile}\n"
 
     if ci.isdigit():
-        (energy, energy_pue, memory, memory_pue, carbon_emissions) = calculate_carbon_footprint(records, ci, pue)
-        (ccf_energy, ccf_energy_pue, ccf_memory, ccf_memory_pue, ccf_carbon_emissions) = calculate_carbon_footprint_ccf(records, ci, pue)
+        (energy, energy_pue, memory, memory_pue, carbon_emissions) = calculate_carbon_footprint_ci(records, ci, pue)
+        (ccf_energy, ccf_energy_pue, ccf_memory, ccf_memory_pue, ccf_carbon_emissions) = calculate_carbon_footprint_ccf_ci(records, ci, pue)
     else:
         ci_filename = f"data/intensity/{ci}.csv"
         (energy, energy_pue, memory, memory_pue, carbon_emissions) = calculate_carbon_footprint_interval(records, pue, ci_filename)
@@ -359,7 +360,7 @@ def calculate_carbon_footprint(filename, ci, pue, core_powerdraw, mem_powerdraw,
     write_summary_file(folder, filename, summary)
     write_trace_file(folder, filename, records)
 
-    return summary
+    return (summary, carbon_emissions, ccf_carbon_emissions)
 
 
 def get_carbon_footprint(command):

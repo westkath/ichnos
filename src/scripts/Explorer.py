@@ -45,13 +45,18 @@ def calculate_footprint(trace, ci, folder):
 
 
 def report_summary(folder, settings, results, shift):
-    with open(folder + "/summary.txt", "w+") as file:
-        for (trace, summary) in results:
+    file_prefix = folder.split("/")[1]
+
+    with open(folder + f"/{file_prefix}~summary.txt", "w+") as file:
+        for (trace, (summary, _, _)) in results:
             file.write(f"Trace Report for [{trace}] using CI Data [{settings[CI]}] with Shift [{shift}]\n")
             file.write(f"{summary}\n\n")
 
-    print(f"[Explorer] Finished - View Results in [{folder}/summary.txt]")
+    with open(folder + f"/{file_prefix}~footprint.csv", "w+") as file:
+        for (trace, (_, cf_ga, cf_ccf)) in results:
+            file.write(f"{trace},{cf_ga},{cf_ccf}\n")
 
+    print(f"[Explorer] Finished - View Results in [{folder}/summary.txt]")
 
 
 def get_output_folder(trace, ci): 
@@ -62,25 +67,49 @@ def get_output_folder(trace, ci):
 
 
 def print_usage_exit():
-    usage = "[Explorer] Expected Usage: py explorer.py <trace-file> <ci-file> <config>"#
-    example = "[Explorer] Example Use: py explorer.py test.csv ci-20240218.csv default"
+    usage = "[Explorer] Expected Usage: py explorer.py <trace-file> <ci-file> <config> <shift>"#
+    example = "[Explorer] Example Use: py explorer.py test.csv ci-20240218.csv default 12"
     print(usage)
     print(example)
     exit(-1)
 
 
 def parse_arguments(arguments):
-    if len(arguments) != 3:
+    if len(arguments) != 4:
         print_usage_exit()
 
     return {
         TRACE: arguments[0].strip(),
         CI: arguments[1].strip(),
-        CONFIG: arguments[2].strip()
+        CONFIG: arguments[2].strip(),
+        SHIFT: int(arguments[3].strip())
     }
 
 
-# Main Script
+def shift_trace_both_directions_by_h(trace, delim, shift_by, ci, output_folder):
+    backward_traces = []
+    forward_traces = []
+
+    for i in range(1, shift_by + 1):
+        shift = f"00-{str(i).zfill(2)}-00"
+        (trace_bwd, _, trace_fwd) = shift_trace(trace, delim, shift)
+        backward_traces.insert(0, trace_bwd)
+        forward_traces.append(trace_fwd)
+
+    footprints = []
+
+    for trace_bwd in backward_traces:
+        footprints.append((trace_bwd, calculate_footprint(trace_bwd, ci, output_folder)))
+
+    footprints.append((trace, calculate_footprint(trace, ci, output_folder)))
+
+    for trace_fwd in forward_traces:
+        footprints.append((trace_fwd, calculate_footprint(trace_fwd, ci, output_folder)))
+
+    return footprints
+
+
+# Shift over 2x hour period
 if __name__ == "__main__":
     args = sys.argv[1:]
     settings = parse_arguments(args)
@@ -88,10 +117,5 @@ if __name__ == "__main__":
     output_folder = get_output_folder(settings[TRACE], settings[CI])
     os.makedirs(output_folder, exist_ok=True)
 
-    (trace_backward, trace, trace_forward) = shift_trace(settings[TRACE], ",", SHIFT_BY_12)
-
-    backward = calculate_footprint(trace_backward, settings[CI], output_folder)
-    original = calculate_footprint(trace, settings[CI], output_folder)
-    forward = calculate_footprint(trace_forward, settings[CI], output_folder)
-
-    report_summary(output_folder, settings, [(trace_backward, backward), (trace, original), (trace_forward, forward)], SHIFT_BY_12)
+    footprints = shift_trace_both_directions_by_h(settings[TRACE], ",", settings[SHIFT], settings[CI], output_folder)
+    report_summary(output_folder, settings, footprints, "custom")

@@ -137,7 +137,7 @@ def convert(settings):
         if settings[NEW_START_MS] < settings[ORIGINAL_START_MS]:
             offset *= -1
 
-    output_filename += f"-{command}-{int(offset)}.{filename[1]}"
+    output_filename += f"~{int(offset)}.{filename[1]}"
     return create_trace_file(filepath, delimiter, offset, output_filename)
 
 def convertor(command):
