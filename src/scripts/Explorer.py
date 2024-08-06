@@ -40,7 +40,7 @@ def shift_trace(trace, delim, shift=DEFAULT_SHIFT):
 
 
 def calculate_footprint(trace, ci, folder):
-    command = f"{trace} {ci} 1.6 20 0.392 default {folder}"
+    command = f"{trace} {ci} 1.67 12 0.392 default {folder}"
     return get_carbon_footprint(command)
 
 
@@ -91,7 +91,15 @@ def shift_trace_both_directions_by_h(trace, delim, shift_by, ci, output_folder):
     forward_traces = []
 
     for i in range(1, shift_by + 1):
-        shift = f"00-{str(i).zfill(2)}-00"
+        shift = ''
+
+        if i >= 24:
+            days = i // 24
+            hours = i - (24 * days)
+            shift = f"{str(days).zfill(2)}-{str(hours).zfill(2)}-00"
+        else:
+            shift = f"00-{str(i).zfill(2)}-00"
+
         (trace_bwd, _, trace_fwd) = shift_trace(trace, delim, shift)
         backward_traces.insert(0, trace_bwd)
         forward_traces.append(trace_fwd)

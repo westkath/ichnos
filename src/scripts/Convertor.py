@@ -69,24 +69,32 @@ def to_timestamp_from_date(time):
 
 
 def to_timestamp_from_dd_hh_mm(time):
-    stamp = datetime.strptime(time[3:], "%H-%M")
-    return (stamp.hour * 3600000) + (stamp.minute * 60000)
+    if time[0:2] == '00':
+        stamp = datetime.strptime(time[3:], "%H-%M")
+        return (stamp.hour * 3600000) + (stamp.minute * 60000)
+    else:
+        stamp = datetime.strptime(time, "%d-%H-%M")
+        return (stamp.day * 86400000) + (stamp.hour * 3600000) + (stamp.minute * 60000)
 
 
 def validate_arguments(args):
     if len(args) != 5:
+        print('a')
         print_usage_exit()
 
     if args[0] not in COMMANDS:
+        print('b')
         print_usage_exit()
 
     date_pattern = re.compile("^\d{4}-\d{2}-\d{2}:\d{2}-\d{2}$")
     dd_hh_mm_pattern = re.compile("^\d{2}-\d{2}-\d{2}$")
 
     if args[3] != "+" and args[3] != "-":
-        if re.match(date_pattern, args[3]) is None or re.match(dd_hh_mm_pattern, args[4]) is None:
+        if re.match(date_pattern, args[3]) is None and re.match(dd_hh_mm_pattern, args[4]) is None:
+            print('c')
             print_usage_exit()
         else:
+            print('d')
             new_start = to_timestamp_from_date(args[3])
 
             if re.match(date_pattern, args[4]) is None:
@@ -97,6 +105,7 @@ def validate_arguments(args):
             direction = None
             shift_ms = None
     else:
+        print('e')
         direction = args[3].strip()
         new_start = None
         original_start = None
