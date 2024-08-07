@@ -16,6 +16,7 @@ DIRECTION = "direction"
 NEW_START_MS = "new-start-ms"
 SHIFT_MS = "shift-ms"
 ORIGINAL_START_MS = "original-start-ms"
+OUT_FILE = "out-file"
 
 
 # Functions
@@ -48,11 +49,11 @@ def create_trace_file(trace_filepath, delim, offset, new_filename):
 
 
 def print_usage_exit():
-    usage = "[Convertor] $ Expected Use - Arguments Format: <change-command> <trace-file-name.end> <delimiter> <direction|new-start> <shift|original-start>"
-    example_time = "[Convertor] $ adjust file by days-hours-minutes: change-time test.csv , + 00-06-30"
-    example_stamp = "[Convertor] $ adjust file by ms: change-ms test.csv , + 23400000"
-    example_start = "[Convertor] $ adjust file start time using date: change-start test.csv , 2024-03-12:09-00 2024-01-01:10-00"
-    example_start_ms = "[Convertor] $ adjust file start time using ms: change-start-ms test.csv , 2024-03-12:09-00 1701083201729"
+    usage = "[Convertor] $ Expected Use - Arguments Format: <change-command> <trace-file-name.end> <delimiter> <direction|new-start> <shift|original-start> <output-name>"
+    example_time = "[Convertor] $ adjust file by days-hours-minutes: change-time test.csv , + 00-06-30 changed"
+    example_stamp = "[Convertor] $ adjust file by ms: change-ms test.csv , + 23400000 changed"
+    example_start = "[Convertor] $ adjust file start time using date: change-start test.csv , 2024-03-12:09-00 2024-01-01:10-00 changed"
+    example_start_ms = "[Convertor] $ adjust file start time using ms: change-start-ms test.csv , 2024-03-12:09-00 1701083201729 changed"
 
     print(usage)
     print(example_time)
@@ -78,12 +79,10 @@ def to_timestamp_from_dd_hh_mm(time):
 
 
 def validate_arguments(args):
-    if len(args) != 5:
-        print('a')
+    if len(args) != 6:
         print_usage_exit()
 
     if args[0] not in COMMANDS:
-        print('b')
         print_usage_exit()
 
     date_pattern = re.compile("^\d{4}-\d{2}-\d{2}:\d{2}-\d{2}$")
@@ -91,10 +90,8 @@ def validate_arguments(args):
 
     if args[3] != "+" and args[3] != "-":
         if re.match(date_pattern, args[3]) is None and re.match(dd_hh_mm_pattern, args[4]) is None:
-            print('c')
             print_usage_exit()
         else:
-            print('d')
             new_start = to_timestamp_from_date(args[3])
 
             if re.match(date_pattern, args[4]) is None:
@@ -105,7 +102,6 @@ def validate_arguments(args):
             direction = None
             shift_ms = None
     else:
-        print('e')
         direction = args[3].strip()
         new_start = None
         original_start = None
@@ -122,7 +118,8 @@ def validate_arguments(args):
         DIRECTION: direction,
         NEW_START_MS: new_start,
         SHIFT_MS: shift_ms,
-        ORIGINAL_START_MS: original_start
+        ORIGINAL_START_MS: original_start,
+        OUT_FILE: args[5]
     }
 
 
@@ -131,7 +128,7 @@ def convert(settings):
     filepath = settings[TRACE_FILE]
     filename = filepath.split("/")[2].split(".")
     delimiter = settings[DELIMITER]
-    output_filename = f"data/trace/{filename[0]}"
+    output_filename = f"data/trace/{settings[OUT_FILE]}.csv"
     offset = None
 
     if command == CHANGE_TIME or command == CHANGE_TIME_MS:
@@ -146,7 +143,7 @@ def convert(settings):
         if settings[NEW_START_MS] < settings[ORIGINAL_START_MS]:
             offset *= -1
 
-    output_filename += f"~{int(offset)}.{filename[1]}"
+    #output_filename += f"~{int(offset)}.{filename[1]}"
     return create_trace_file(filepath, delimiter, offset, output_filename)
 
 def convertor(command):

@@ -357,8 +357,8 @@ def calculate_carbon_footprint(filename, ci, pue, core_powerdraw, mem_powerdraw,
     summary += f"- Carbon Emissions: {ccf_carbon_emissions}gCO2e"
 
     # Report Carbon Footprint
-    write_summary_file(folder, filename, summary)
-    write_trace_file(folder, filename, records)
+    write_summary_file(folder, filename + '-' + ci, summary)
+    write_trace_file(folder, filename + '-' + ci, records)
 
     return (summary, carbon_emissions, ccf_carbon_emissions)
 
