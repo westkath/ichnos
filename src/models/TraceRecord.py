@@ -49,7 +49,10 @@ class TraceRecord:
                 parts = value.split(" ")
                 value = float(value.strip())
             elif field == "%cpu":  # format x.y%
-                value = float(value[:-1])
+                if value[:-1] == '':
+                    value = 0.0
+                else:
+                    value = float(value[:-1])
             elif field == "cpus":
                 value = int(value)
 

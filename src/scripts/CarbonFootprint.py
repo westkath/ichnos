@@ -12,6 +12,14 @@ DELIMITER = ","
 MEMORY_COEFFICIENT = 0.392  # CCF Average (See Website)
 #CPU_STATS = {DEFAULT: [65, 219]}  # Office Desktop
 CPU_STATS = {DEFAULT: [37, 107]}  # Cluster in Germany
+# add entries for each machine type and update script depending on which is being used
+
+# wow
+
+# memory
+
+# lotaru
+
 
 
 # Functions

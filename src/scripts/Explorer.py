@@ -9,7 +9,7 @@ from src.scripts.CarbonFootprint import get_carbon_footprint
 SHIFT_BY_12 = "00-12-00"
 SHIFT_BY_6 = "00-06-00"
 DEFAULT_SHIFT = SHIFT_BY_12
-CMD_SHIFT = "change-time trace delim direction shift"
+CMD_SHIFT = "change-time trace delim direction shift filename"
 FORWARD = "+"
 BACKWARD = "-"
 TRACE = "trace"
@@ -18,6 +18,7 @@ CONFIG = "config"
 DELIM = "delim"
 DIRECTION = "direction"
 SHIFT = "shift"
+TRACE_FILENAME = "filename"
 
 
 # Functions
@@ -26,12 +27,14 @@ def shift_trace(trace, delim, shift=DEFAULT_SHIFT):
             .replace(TRACE, trace)\
             .replace(DELIM, delim)\
             .replace(DIRECTION, FORWARD)\
-            .replace(SHIFT, shift)
+            .replace(SHIFT, shift)\
+            .replace(TRACE_FILENAME, f"{trace.split('.')[0]}~{shift}")
     cmd_shift_backward = CMD_SHIFT\
             .replace(TRACE, trace)\
             .replace(DELIM, delim)\
             .replace(DIRECTION, BACKWARD)\
-            .replace(SHIFT, shift)
+            .replace(SHIFT, shift)\
+            .replace(TRACE_FILENAME, f"{trace.split('.')[0]}~{shift}")
 
     trace_forward = convertor(cmd_shift_forward)
     trace_backward = convertor(cmd_shift_backward)
