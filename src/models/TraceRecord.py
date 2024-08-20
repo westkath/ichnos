@@ -26,6 +26,11 @@ class TraceRecord:
 
         self._memory = self._raw['memory']
         self._name = self._raw['name']
+        self._task_id = self._raw['task_id']
+        self._hash = self._raw['hash']
+        self._process = self._raw['process']
+        self._realtime = self._raw['realtime']
+        self._submit = self._raw['submit']
 
     def get_raw_data_map(self, fields, data, delimiter):
         raw = {}
@@ -80,6 +85,33 @@ class TraceRecord:
 
     def parse_memory(self):
         return self._memory  # 4 GB check what others look like ? 
+
+    def get_cpu_count(self):
+        return self._cpu_count
+    
+    def get_cpu_model(self):
+        return self._cpu_model
+
+    def get_task_id(self):
+        return self._task_id
+    
+    def get_hash(self):
+        return self._hash
+
+    def get_process(self):
+        return self._process
+
+    def get_realtime(self):
+        return self._realtime
+
+    def get_submit(self):
+        return self._submit
+
+    def get_complete(self):
+        return self._complete
+
+    def get_start(self):
+        return self._start
 
     def __str__(self):
         return f"[TraceRecord: {str(self._raw)}]"
