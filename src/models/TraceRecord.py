@@ -27,7 +27,12 @@ class TraceRecord:
         self._memory = self._raw['memory']
         self._name = self._raw['name']
         self._task_id = self._raw['task_id']
-        self._hash = self._raw['hash']
+
+        if 'hash' in self._raw:
+            self._hash = self._raw['hash']
+        else:
+            self._hash = None
+
         self._process = self._raw['process']
         self._realtime = self._raw['realtime']
         self._submit = self._raw['submit']

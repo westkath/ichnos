@@ -42,7 +42,6 @@ def print_usage_exit():
 def get_timeline_data(record):
     data = {}
 
-    data["task"] = record.get_hash()
     data["process"] = record.get_process()
     data["realtime"] = record.get_realtime()
     data["start"] = record.get_start()
