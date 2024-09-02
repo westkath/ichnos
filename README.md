@@ -6,10 +6,15 @@ For the initial version, replicating the previous calculation approach noted in 
 ```
 $ python -m src.scripts.CarbonFootprint <trace-file-name> <carbon-intensity> <power-usage-effectiveness> <cpu-power-draw> <memory-power-draw> <config-profile>"  
 $ python -m src.scripts.CarbonFootprint test 475 1.67 12 0.3725 default
-```  
-Note that the trace file name must be the file name only, and traces should be csv files stored in the [data trace](data/trace/) directory!  
+```    
 Configuration Profiles are available and can be adjusted - see the [trace config](config/trace.conf) - default refers to a csv file.   
 Future plans will look at using CI values based on the time interval that the trace was executed in, and inclusion of variable cpu and memory power draw values. 
+
+> **Note**  
+> The trace file name must be the file name only, and traces should be csv files stored in the [data trace](data/trace/) directory!
+
+> **Note**  
+> The trace file must use raw data values, e.g. duration recorded in ms, this is possible by using the trace.raw flag when executing a nextflow workflow. 
 
 # Output
 The script will produce two files. If the trace file name was 'test', then 'test-trace.csv' would produce a csv file of Carbon Records with energy consumption (inc. PUE) and carbon footprint for each task in the trace file. The 'test-summary.txt' file will contain details around the provided parameters (e.g. CI, PUE) and the overall energy, memory and carbon footprint.   
