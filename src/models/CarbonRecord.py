@@ -26,14 +26,23 @@ class CarbonRecord:
     def get_realtime(self):
         return self._realtime
 
+    def set_realtime(self, realtime):
+        self._realtime = realtime
+
     def get_core_count(self):
         return self._core_count
 
     def get_start(self):
         return self._start
 
+    def set_start(self, start):
+        self._start = start
+
     def get_complete(self):
         return self._complete
+
+    def set_complete(self, complete):
+        self._complete = complete
 
     def get_cpu_powerdraw(self):
         return self._core_powerdraw
@@ -72,4 +81,7 @@ class CarbonRecord:
         self._avg_ci = ci
 
     def __str__(self):
+        if not hasattr(self, '_memory_powerdraw'):
+            self._memory_powerdraw = None
+
         return f"{self._name},{self._co2e},{self._energy},{self._avg_ci},{self._realtime},{self._cpu_model},{self._core_count},{self._core_powerdraw},{self._cpu_usage},{self._memory},{self._memory_powerdraw}"

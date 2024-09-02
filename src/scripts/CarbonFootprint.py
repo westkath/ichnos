@@ -36,7 +36,7 @@ def get_cpu_min_max(cpu_model):
     if cpu_model in CPU_STATS:
         return (CPU_STATS[cpu_model][0], CPU_STATS[cpu_model][1])
     else:
-        print(f"Could not find CPU [{cpu_model}], please add to specs/cpu.csv for more accurate readings.")
+        # print(f"Could not find CPU [{cpu_model}], please add to specs/cpu.csv for more accurate readings.")
         return (CPU_STATS[DEFAULT][0], CPU_STATS[DEFAULT][1])
 
 
@@ -85,8 +85,8 @@ def parse_ci_intervals(filename):
     for row in data:
         parts = row.split(",")
         date = parts[date_i]
-        # key = f"{date.replace('/', '')}:{parts[start_i].replace(':', '')}"
-        key = f"{parts[start_i]}"
+        month_day = '/'.join([val.zfill(2) for val in date.split('-')[-2:]])
+        key = month_day + '-' + parts[start_i]
         value = float(parts[value_i])
         ci_map[key] = value
 
@@ -99,11 +99,15 @@ def get_ci_for_interval(start, end, ci):
     end_ts = to_timestamp(end)
     start_hour = start_ts.hour
     start_min = start_ts.minute
+    start_month = str(start_ts.month).zfill(2)
+    start_day = str(start_ts.day).zfill(2)
     end_hour = end_ts.hour
     end_min = end_ts.minute
+    end_month = str(end_ts.month).zfill(2)
+    end_day = str(end_ts.day).zfill(2)
     diff_hour = int(end_hour) - int(start_hour)
-    start_key = f"{str(start_hour).zfill(2)}:00"
-    end_key = f"{str(end_hour).zfill(2)}:00"
+    start_key = f"{start_month}/{start_day}-{str(start_hour).zfill(2)}:00"
+    end_key = f"{end_month}/{end_day}-{str(end_hour).zfill(2)}:00"
 
     if diff_hour > 1:  # interval occurs across hours that have at least one full one between them
         diff_overall = (60 * (diff_hour - 1)) + (60 - start_min) + end_min
@@ -159,7 +163,6 @@ def calculate_task_consumption_ccf(record: CarbonRecord):
     core_consumption = time * (min_watts + cpu_usage * (max_watts - min_watts)) * 0.001  # convert from W to kW
     # Memory Power Consumption (without PUE)
     memory_consumption = memory * MEMORY_COEFFICIENT * time * 0.001  # convert from W to kW
-
     # Overall and Memory Consumption (kW) (without PUE)
     return (core_consumption, memory_consumption)
 
@@ -256,7 +259,7 @@ def calculate_carbon_footprint_interval_ccf(records, pue, interval_filename):
     for record in records:
         task_avg_ci = get_ci_for_interval(record.get_start(), record.get_complete(), ci_map)
 
-        # Calculate Task & Memory Energy Consumption using Green Algorithms Method
+        # Calculate Task & Memory Energy Consumption using Cloud Carbon Footprint Method
         (energy, memory) = calculate_task_consumption_ccf(record)
         energy_pue = energy * float(pue)
         memory_pue = memory * float(pue)

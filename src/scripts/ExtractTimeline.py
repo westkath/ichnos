@@ -168,8 +168,4 @@ if __name__ == '__main__':
         print_usage_exit()
 
     filename = arguments[0]
-    tasks_by_hour = extract_timeline(filename)
-
-    # for hour, tasks in tasks_by_hour.items():
-    #     print(hour)
-    #     print(set([task["process"].split(":")[-1] for task in tasks]))
+    extract_timeline(filename)

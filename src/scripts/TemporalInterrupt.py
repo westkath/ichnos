@@ -1,9 +1,9 @@
 from src.models.TraceRecord import TraceRecord
+from src.models.CarbonRecord import CarbonRecord
 import sys
 import datetime as time
-import matplotlib.pyplot as plt
+import copy
 import numpy as np
-import pandas as pd
 
 
 # Default Values
@@ -11,6 +11,7 @@ DEFAULT = "default"
 FILE = "csv"
 DELIMITER = ","
 MEMORY_COEFFICIENT = 0.392  # CCF Average (See Website)
+PUE = 1.67
 
 
 # Functions
@@ -39,39 +40,12 @@ def parse_ci_intervals(filename):
     for row in data:
         parts = row.split(",")
         date = parts[date_i]
-        # key = f"{date.replace('/', '')}:{parts[start_i].replace(':', '')}"
-        key = f"{parts[start_i]}"
+        month_day = '/'.join([val.zfill(2) for val in date.split('-')[-2:]])
+        key = month_day + '-' + parts[start_i]
         value = float(parts[value_i])
         ci_map[key] = value
 
     return ci_map
-
-
-def get_ci_for_interval(start, end, ci):
-    start_ts = to_timestamp(start)
-    end_ts = to_timestamp(end)
-    start_hour = start_ts.hour
-    start_min = start_ts.minute
-    end_hour = end_ts.hour
-    end_min = end_ts.minute
-    diff_hour = int(end_hour) - int(start_hour)
-    start_key = f"{str(start_hour).zfill(2)}:00"
-    end_key = f"{str(end_hour).zfill(2)}:00"
-
-    if diff_hour > 1:  # interval occurs across hours that have at least one full one between them
-        diff_overall = (60 * (diff_hour - 1)) + (60 - start_min) + end_min
-        avg_ci = (ci[start_key] * ((60 - start_min) / diff_overall)) + (ci[end_key] * (end_min / diff_overall))
-
-        for i in range(1, diff_hour):
-            key = f"{str(int(start_hour) + i).zfill(2)}:00"
-            avg_ci += ci[key] * (60 / diff_overall)
-    elif diff_hour == 1:  # interval occurs across two adjacent hours
-        diff_overall = (60 - start_min) + end_min
-        avg_ci = (ci[start_key] * ((60 - start_min) / diff_overall)) + (ci[end_key] * (end_min / diff_overall))
-    else:  # interval occurs within an hour (more complex for 30 minute intervals)
-        avg_ci = ci[start_key]
-
-    return avg_ci
 
 
 def parse_trace_file(filepath):
@@ -89,117 +63,110 @@ def parse_trace_file(filepath):
 
 
 def print_usage_exit():
-    usage = "carbon-footprint $ python -m src.scripts.ExtractTimeline <trace-file-name>"
-    example = "carbon-footprint $ python -m src.scripts.ExtractTimeline test"
+    usage = "carbon-footprint $ python -m src.scripts.ExtractTimeline <trace-file-name> <ci-file-name> <min-watts> <max-watts>"
+    example = "carbon-footprint $ python -m src.scripts.ExtractTimeline test ci-test 65 219"
 
     print(usage)
     print(example)
     exit(-1)
 
 
-def get_timeline_data(record):
-    data = {}
-
-    data["process"] = record.get_process()
-    data["realtime"] = record.get_realtime()
-    data["start"] = record.get_start()
-    data["complete"] = record.get_complete()
-    data["cpu_count"] = record.get_cpu_count()
-    data["cpu_usage"] = record.parse_cpu_percentage()
-    data["cpu_model"] = record.get_cpu_model()
-    data["memory"] = record.parse_memory()
-    
-    return data
+def get_carbon_record(record: TraceRecord):
+    return record.make_carbon_record()
 
 
-def get_tasks_by_hour(start_hour, end_hour, tasks):
+def get_tasks_by_hour_with_overhead(start_hour, end_hour, tasks):
     tasks_by_hour = {}
+    overheads = []
+    runtimes = []
 
     step = 60 * 60 * 1000  # 60 minutes in ms
     i = start_hour - step  # start an hour before to be safe
+    # total = 0
 
     while i <= end_hour:
         data = [] 
+        hour_overhead = 0
 
         for task in tasks: 
+            start = int(task.get_start())
+            complete = int(task.get_complete())
             # full task is within this hour
-            if int(task["start"]) >= i and int(task["complete"]) <= i + step:
+            if start >= i and complete <= i + step:
                 data.append(task)
+                runtimes.append(complete - start)
             # task ends within this hour (but starts in a previous hour)
-            elif int(task["complete"]) > i and int(task["complete"]) <= i + step and int(task["start"]) < i:
+            elif complete > i and complete < i + step and start < i:
                 # add task from start of this hour until end of hour
-                partial_task = task.copy()
-                partial_task["start"] = i
+                partial_task = copy.deepcopy(task)
+                partial_task.set_start(i)
+                partial_task.set_realtime(complete - i)
                 data.append(partial_task)
-            # task starts within this hour (but ends in a later hour)
-            elif int(task["start"]) > i and int(task["start"]) <= i + step and int(task["complete"]) > i + step: 
+                runtimes.append(complete - i)
+            # task starts within this hour (but ends in a later hour) -- OVERHEAD
+            elif start > i and start < i + step and complete > i + step: 
                 # add task from start to end of this hour
-                partial_task = task.copy()
-                partial_task["complete"] = i + step
+                partial_task = copy.deepcopy(task)
+                partial_task.set_complete(i + step)
+                partial_task.set_realtime(i + step - start)
                 data.append(partial_task)
+                if (i + step - start) > hour_overhead:
+                    hour_overhead = i + step - start
+                runtimes.append(i + step - start)
             # task starts before hour and ends after this hour
-            elif int(task["start"]) < i and int(task["complete"]) > i + step:
-                partial_task = task.copy()
-                partial_task["start"] = i
-                partial_task["end"] = i + step
+            elif start < i and complete > i + step:
+                partial_task = copy.deepcopy(task)
+                partial_task.set_start(i)
+                partial_task.set_complete(i + step)
+                partial_task.set_realtime(step)
                 data.append(partial_task)
+                runtimes.append(step)
 
         tasks_by_hour[i] = data
+        overheads.append(hour_overhead)
         i += step
 
-    return tasks_by_hour
+    overhead = sum(overheads)
+    task_overall_runtime = sum(runtimes)
+
+    return (tasks_by_hour, overhead, task_overall_runtime)
 
 
-def plot_task_timeline(tasks):
-    # y_pos = np.arange(len(tasks))
-    x1_pos = []
+def to_closest_hour_ms(original):
+    ts = to_timestamp(original)
+
+    if ts.minute >= 30:
+        if ts.hour + 1 == 24:
+            ts = ts.replace(hour=0, minute=0, second=0, microsecond=0, day=ts.day+1)
+        else:
+            ts = ts.replace(second=0, microsecond=0, minute=0, hour=ts.hour+1)
+    else:
+        ts = ts.replace(second=0, microsecond=0, minute=0)
+
+    return int(ts.timestamp() * 1000)  # closest hour in ms
+
+
+def get_tasks_by_hour(tasks):
+    starts = []
     ends = []
-    widths = []
-    labels = []
+    # total_time = 0
 
     for task in tasks:
-        x1_pos.append(int(task["start"]))
-        width = int(task["complete"]) - int(task["start"])
-        ends.append(int(task["complete"]))
-        widths.append(width)
-        labels.append(task["process"].split(":")[-1:])
+        starts.append(int(task.get_start()))
+        ends.append(int(task.get_complete()))
+        # total_time += int(task.get_complete()) - int(task.get_start())
 
-    earliest = min(x1_pos)
+    earliest = min(starts)
     latest = max(ends)
-    earliest_hh = int(pd.to_datetime(earliest, unit="ms").round('60min').timestamp() * 1000)  # closest hour in ms
-    latest_hh = int(pd.to_datetime(latest, unit="ms").round('60min').timestamp() * 1000)  # closest hour in ms
-    diff = 60 * 60 * 1000  # 15 minutes in ms
-    ticks = []
-    ticklabels = []
+    earliest_hh = to_closest_hour_ms(earliest)  
+    latest_hh = to_closest_hour_ms(latest)
 
-    i = earliest_hh - diff
-    while i <= latest_hh + diff:
-        ticks.append(i)
-        ticklabels.append(pd.to_datetime(i, unit="ms").strftime("%H:%M"))
-        i += diff 
+    # print(f'total time before grouping {total_time}')
 
-    fig, ax = plt.subplots()
-    ax.invert_yaxis()
-
-    for i in range(len(tasks)):
-        ax.barh(labels[i], widths[i], left=x1_pos[i], label=labels[i], alpha=0.7)
-
-    i = earliest_hh
-    while i <= latest_hh:
-        ax.axvline(i)
-        i += diff
-
-    tasks_by_hour = get_tasks_by_hour(earliest_hh, latest_hh, tasks)
-
-    ax.set_xticks(ticks)
-    ax.set_xticklabels(ticklabels)
-
-    plt.show()
-
-    return tasks_by_hour
+    return get_tasks_by_hour_with_overhead(earliest_hh, latest_hh, tasks)
 
 
-def extract_timeline(filename):
+def extract_tasks_by_hour(filename):
     if len(filename.split(".")) > 1:
         filename = filename.split(".")[-2]
 
@@ -207,10 +174,60 @@ def extract_timeline(filename):
     data_records = []
 
     for record in records:
-        data = get_timeline_data(record)
+        data = get_carbon_record(record)
         data_records.append(data)
 
-    return plot_task_timeline(data_records)
+    return get_tasks_by_hour(data_records)
+
+
+def calculate_carbon_footprint_for_task(task: CarbonRecord, min_watts, max_watts):
+    # Time (h)
+    time = task.get_realtime() / 1000 / 3600  # convert from ms to h
+    # Number of Cores (int)
+    no_cores = task.get_core_count()
+    # CPU Usage (%)
+    cpu_usage = task.get_cpu_usage() / (100.0 * no_cores)
+    # Memory (GB)
+    memory = task.get_memory()
+    # Core Energy Consumption (without PUE)
+    core_consumption = time * (min_watts + cpu_usage * (max_watts - min_watts)) * 0.001  # convert from W to kW
+    # Memory Power Consumption (without PUE)
+    memory_consumption = memory * MEMORY_COEFFICIENT * time * 0.001  # convert from W to kW
+    # Overall and Memory Consumption (kW) (without PUE)
+    return (core_consumption, memory_consumption)
+
+
+def calculate_carbon_footprint(tasks_by_hour, ci, pue: float, min_watts, max_watts):
+    total_energy = 0.0
+    total_energy_pue = 0.0
+    total_memory_energy = 0.0
+    total_memory_energy_pue = 0.0
+    total_carbon_emissions = 0.0
+
+    for hour, tasks in tasks_by_hour.items():
+        hour_ts = to_timestamp(hour)
+        month = str(hour_ts.month).zfill(2)
+        day = str(hour_ts.day).zfill(2)
+        hh = str(hour_ts.hour).zfill(2)
+        mm = str(hour_ts.minute).zfill(2)
+        ci_key = f'{month}/{day}-{hh}:{mm}'
+        ci_val = ci[ci_key] 
+
+        for task in tasks:
+            (energy, memory) = calculate_carbon_footprint_for_task(task, min_watts, max_watts)
+            energy_pue = energy * pue
+            memory_pue = memory * pue
+            task_footprint = energy_pue * ci_val
+            task.set_energy(energy_pue)
+            task.set_co2e(task_footprint)
+            task.set_avg_ci(ci_val)
+            total_energy += energy
+            total_energy_pue += energy_pue
+            total_memory_energy += memory
+            total_memory_energy_pue += memory_pue
+            total_carbon_emissions += task_footprint
+
+    return (total_energy, total_energy_pue, total_memory_energy, total_memory_energy_pue, total_carbon_emissions)
 
 
 # Main Script
@@ -218,15 +235,69 @@ if __name__ == '__main__':
     # Parse Arguments
     arguments = sys.argv[1:]
 
-    if len(arguments) != 1:
+    if len(arguments) != 4:
         print_usage_exit()
 
     filename = arguments[0]
-    tasks_by_hour = extract_timeline(filename)
+    ci_filename = f"data/intensity/{arguments[1]}.csv"
+    min_watts = int(arguments[2])
+    max_watts = int(arguments[3])
+    ci = parse_ci_intervals(ci_filename)
+    (tasks_by_hour, overhead, task_overall_runtime) = extract_tasks_by_hour(filename)
+    overhead_s = int(overhead / 1000)
+    task_runtime_total_s = int(task_overall_runtime / 1000)
 
-    # parse the carbon intensity file
+    print(f'Task Runtime (total): {task_runtime_total_s}s')
+    print(f'Overhead: {overhead_s}s')
+
+    # Identify Hours in Order
+    hours_by_key = {}
 
     for hour, tasks in tasks_by_hour.items():
-        print(hour)
-        print(set([task["process"].split(":")[-1] for task in tasks]))
-        # for each task, call get_ci_for_interval(start, end, ci (a dict populated from file))
+        if len(tasks) > 0:
+            hour_ts = to_timestamp(hour)
+            month = str(hour_ts.month).zfill(2)
+            day = str(hour_ts.day).zfill(2)
+            hh = str(hour_ts.hour).zfill(2)
+            mm = str(hour_ts.minute).zfill(2)
+            key = f'{month}/{day}-{hh}:{mm}'
+            hours_by_key[key] = tasks
+
+    keys = list(hours_by_key.keys())
+    wf_hours = len(keys)
+
+    # Shifting Window Keys (-xh, +xh)
+    shift = 6  # 6 hours before start, 6 hours after end, should be length of keys + 12
+    ci_keys = list(ci.keys())
+    start = keys[0]
+    end = keys[-1]
+    start_i = ci_keys.index(start)
+    end_i = ci_keys.index(end)
+    shift_keys = ci_keys[start_i - shift:end_i + shift + 1]
+    shift_ci_vals = []
+
+    for key in shift_keys:
+        shift_ci_vals.append(ci[key])
+
+    print(shift_keys)
+    print(shift_ci_vals)
+
+    dat = np.array(shift_ci_vals)
+    ind = np.argpartition(dat, wf_hours+3)[:wf_hours+3]
+    print(ind)
+    min_keys = []
+
+    for i in ind:
+        min_keys.append(shift_keys[i])
+    print(min_keys)
+
+    (energy, energy_pue, memory, memory_pue, carbon_emissions) = calculate_carbon_footprint(tasks_by_hour, ci, PUE, min_watts, max_watts)
+
+    summary = f'Cloud Carbon Footprint Method:\n'
+    summary += f"- Energy Consumption (exc. PUE): {energy}kWh\n"
+    summary += f"- Energy Consumption (inc. PUE): {energy_pue}kWh\n"
+    summary += f"- Memory Energy Consumption (exc. PUE): {memory}kWh\n"
+    summary += f"- Memory Energy Consumption (inc. PUE): {memory_pue}kWh\n"
+    summary += f"- Carbon Emissions: {carbon_emissions}gCO2e\n"
+    #print(summary)
+    
