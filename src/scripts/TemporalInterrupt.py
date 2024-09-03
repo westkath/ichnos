@@ -110,7 +110,7 @@ def get_tasks_by_hour_with_overhead(start_hour, end_hour, tasks):
                 partial_task.set_complete(i + step)
                 partial_task.set_realtime(i + step - start)
                 data.append(partial_task)
-                if (i + step - start) > hour_overhead:
+                if (i + step - start) > hour_overhead:  # get the overhead for the longest task that starts now but ends later
                     hour_overhead = i + step - start
                 runtimes.append(i + step - start)
             # task starts before hour and ends after this hour
@@ -126,10 +126,9 @@ def get_tasks_by_hour_with_overhead(start_hour, end_hour, tasks):
         overheads.append(hour_overhead)
         i += step
 
-    overhead = sum(overheads)
     task_overall_runtime = sum(runtimes)
 
-    return (tasks_by_hour, overhead, task_overall_runtime)
+    return (tasks_by_hour, overheads)
 
 
 def to_closest_hour_ms(original):
@@ -149,19 +148,15 @@ def to_closest_hour_ms(original):
 def get_tasks_by_hour(tasks):
     starts = []
     ends = []
-    # total_time = 0
 
     for task in tasks:
         starts.append(int(task.get_start()))
         ends.append(int(task.get_complete()))
-        # total_time += int(task.get_complete()) - int(task.get_start())
 
     earliest = min(starts)
     latest = max(ends)
     earliest_hh = to_closest_hour_ms(earliest)  
     latest_hh = to_closest_hour_ms(latest)
-
-    # print(f'total time before grouping {total_time}')
 
     return get_tasks_by_hour_with_overhead(earliest_hh, latest_hh, tasks)
 
@@ -205,29 +200,112 @@ def calculate_carbon_footprint(tasks_by_hour, ci, pue: float, min_watts, max_wat
     total_carbon_emissions = 0.0
 
     for hour, tasks in tasks_by_hour.items():
-        hour_ts = to_timestamp(hour)
-        month = str(hour_ts.month).zfill(2)
-        day = str(hour_ts.day).zfill(2)
-        hh = str(hour_ts.hour).zfill(2)
-        mm = str(hour_ts.minute).zfill(2)
-        ci_key = f'{month}/{day}-{hh}:{mm}'
-        ci_val = ci[ci_key] 
+        if len(tasks) > 0:
+            hour_ts = to_timestamp(hour)
+            month = str(hour_ts.month).zfill(2)
+            day = str(hour_ts.day).zfill(2)
+            hh = str(hour_ts.hour).zfill(2)
+            mm = str(hour_ts.minute).zfill(2)
+            ci_key = f'{month}/{day}-{hh}:{mm}'
+            ci_val = ci[ci_key] 
 
-        for task in tasks:
-            (energy, memory) = calculate_carbon_footprint_for_task(task, min_watts, max_watts)
-            energy_pue = energy * pue
-            memory_pue = memory * pue
-            task_footprint = energy_pue * ci_val
-            task.set_energy(energy_pue)
-            task.set_co2e(task_footprint)
-            task.set_avg_ci(ci_val)
-            total_energy += energy
-            total_energy_pue += energy_pue
-            total_memory_energy += memory
-            total_memory_energy_pue += memory_pue
-            total_carbon_emissions += task_footprint
+            for task in tasks:
+                (energy, memory) = calculate_carbon_footprint_for_task(task, min_watts, max_watts)
+                energy_pue = energy * pue
+                memory_pue = memory * pue
+                task_footprint = energy_pue * ci_val
+                task.set_energy(energy_pue)
+                task.set_co2e(task_footprint)
+                task.set_avg_ci(ci_val)
+                total_energy += energy
+                total_energy_pue += energy_pue
+                total_memory_energy += memory
+                total_memory_energy_pue += memory_pue
+                total_carbon_emissions += task_footprint
 
     return (total_energy, total_energy_pue, total_memory_energy, total_memory_energy_pue, total_carbon_emissions)
+
+
+def get_hours(arr):
+    hours = []
+    prev = arr[0]
+    i = 1
+
+    while i < len(arr):
+        if not (prev + 1 == arr[i]):  # if not consecutive, workflow halts and resumes
+            hours.append(i - 1)  # add the overhead for the previous hour which will not finish by this hour
+        prev = arr[i]
+        i += 1
+
+    return hours
+
+
+def main(workflow, tasks, ci, min_watts, max_watts, overhead_hours):
+    # Identify Hours in Order
+    hours_by_key = {}
+
+    for hour, tasks in tasks_by_hour.items():
+        if len(tasks) > 0:
+            hour_ts = to_timestamp(hour)
+            month = str(hour_ts.month).zfill(2)
+            day = str(hour_ts.day).zfill(2)
+            hh = str(hour_ts.hour).zfill(2)
+            mm = str(hour_ts.minute).zfill(2)
+            key = f'{month}/{day}-{hh}:{mm}'
+            hours_by_key[key] = tasks
+
+    # Calculate Original Carbon Footprint
+    (orig_energy, orig_energy_pue, orig_memory, orig_memory_pue, orig_carbon_emissions) = calculate_carbon_footprint(tasks_by_hour, ci, PUE, min_watts, max_watts)
+    #print(f'CF (original time): {orig_carbon_emissions}gCO2e')
+
+    # Prepare Script Output
+    output = [workflow, str(orig_carbon_emissions)]
+
+    # SHIFTING LOGIC
+    for shift in [6, 12, 24, 48, 96]:  # flexibility to run over windows 'shift' hours before and after the workflow executed
+        keys = list(hours_by_key.keys())  # keys that the workflow executes over
+        wf_hours = len(keys)  # hours of workflow execution
+        ci_keys = list(ci.keys())  # all windows that have ci values, as keys
+        start = keys[0]  # workflow start key
+        end = keys[-1]  # workflow end key
+        start_i = ci_keys.index(start)  # workflow start index
+        end_i = ci_keys.index(end)  # workflow end index
+        shift_keys = ci_keys[start_i - shift:end_i + shift + 1]  # all keys within the shift
+        # reliant on ci data provided being long enough for the shift window, if not this will error
+
+        dat = np.array([ci[key] for key in shift_keys])  # store corresponding ci values for the potential shifts
+        ind = sorted(np.argpartition(dat, wf_hours)[:wf_hours])  # indices of the minimum ci values
+        # the indices are sorted to retain chronological order over time
+        min_keys = [shift_keys[i] for i in ind]  # matching keys for the minimum ci values
+
+        ci_for_shifted_trace = {}
+        for i in range(0, len(min_keys)):
+            ci_for_shifted_trace[keys[i]] = ci[min_keys[i]]
+
+        # Report Optimal CI Temporal Shifting Carbon Footprint
+        (energy, energy_pue, memory, memory_pue, carbon_emissions) = calculate_carbon_footprint(tasks_by_hour, ci_for_shifted_trace, PUE, min_watts, max_watts)
+        #print(f'CF (shift {shift} hours): {carbon_emissions}gCO2e')
+    
+        # Report Overhead of Interrupting Temporal Shifting
+        oh_hour_inds = get_hours(ind)
+        overhead = 0
+
+        if len(overhead_hours) > 0:
+            for oh_hour_ind in oh_hour_inds:
+                overhead += overhead_hours[oh_hour_ind]
+
+            #print(f'Overhead: {overhead / 1000}s')
+            # print(keys)
+            # print(min_keys)
+        #else:
+            #print(f'Overhead: 0s as minimum ci ran over consecutive hours for the entire workflow duration (no halt-resume)')
+
+        saving = ((orig_carbon_emissions - carbon_emissions) / orig_carbon_emissions) * 100
+
+        output.append(f'{saving:.1f}%:{carbon_emissions}:{overhead}')
+
+    # print('workflow,footprint,flexible-6h,flexible-12h,flexible-24h,flexible-48h,flexible-96h')  # unnecessary when script will run this script
+    print(','.join(output))
 
 
 # Main Script
@@ -243,61 +321,6 @@ if __name__ == '__main__':
     min_watts = int(arguments[2])
     max_watts = int(arguments[3])
     ci = parse_ci_intervals(ci_filename)
-    (tasks_by_hour, overhead, task_overall_runtime) = extract_tasks_by_hour(filename)
-    overhead_s = int(overhead / 1000)
-    task_runtime_total_s = int(task_overall_runtime / 1000)
+    (tasks_by_hour, overhead_hours) = extract_tasks_by_hour(filename)
 
-    print(f'Task Runtime (total): {task_runtime_total_s}s')
-    print(f'Overhead: {overhead_s}s')
-
-    # Identify Hours in Order
-    hours_by_key = {}
-
-    for hour, tasks in tasks_by_hour.items():
-        if len(tasks) > 0:
-            hour_ts = to_timestamp(hour)
-            month = str(hour_ts.month).zfill(2)
-            day = str(hour_ts.day).zfill(2)
-            hh = str(hour_ts.hour).zfill(2)
-            mm = str(hour_ts.minute).zfill(2)
-            key = f'{month}/{day}-{hh}:{mm}'
-            hours_by_key[key] = tasks
-
-    keys = list(hours_by_key.keys())
-    wf_hours = len(keys)
-
-    # Shifting Window Keys (-xh, +xh)
-    shift = 6  # 6 hours before start, 6 hours after end, should be length of keys + 12
-    ci_keys = list(ci.keys())
-    start = keys[0]
-    end = keys[-1]
-    start_i = ci_keys.index(start)
-    end_i = ci_keys.index(end)
-    shift_keys = ci_keys[start_i - shift:end_i + shift + 1]
-    shift_ci_vals = []
-
-    for key in shift_keys:
-        shift_ci_vals.append(ci[key])
-
-    print(shift_keys)
-    print(shift_ci_vals)
-
-    dat = np.array(shift_ci_vals)
-    ind = np.argpartition(dat, wf_hours+3)[:wf_hours+3]
-    print(ind)
-    min_keys = []
-
-    for i in ind:
-        min_keys.append(shift_keys[i])
-    print(min_keys)
-
-    (energy, energy_pue, memory, memory_pue, carbon_emissions) = calculate_carbon_footprint(tasks_by_hour, ci, PUE, min_watts, max_watts)
-
-    summary = f'Cloud Carbon Footprint Method:\n'
-    summary += f"- Energy Consumption (exc. PUE): {energy}kWh\n"
-    summary += f"- Energy Consumption (inc. PUE): {energy_pue}kWh\n"
-    summary += f"- Memory Energy Consumption (exc. PUE): {memory}kWh\n"
-    summary += f"- Memory Energy Consumption (inc. PUE): {memory_pue}kWh\n"
-    summary += f"- Carbon Emissions: {carbon_emissions}gCO2e\n"
-    #print(summary)
-    
+    main(filename, tasks_by_hour, ci, min_watts, max_watts, overhead_hours)
