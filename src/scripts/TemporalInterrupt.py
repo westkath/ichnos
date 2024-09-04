@@ -12,6 +12,38 @@ FILE = "csv"
 DELIMITER = ","
 MEMORY_COEFFICIENT = 0.392  # CCF Average (See Website)
 PUE = 1.67
+WORKFLOWS = [
+    'chipseq-orig-ceph-1', 
+    'chipseq-orig-ceph-2', 
+    'chipseq-orig-ceph-3',
+    'chipseq-orig-nfs-1', 
+    'chipseq-orig-nfs-2', 
+    'chipseq-orig-nfs-3',
+    #'mag-orig-ceph-1', 
+    #'mag-orig-ceph-2', 
+    #'mag-orig-ceph-3',
+    #'montage-orig-ceph-1', 
+    #'montage-orig-ceph-2', 
+    #'montage-orig-ceph-3',
+    #'montage-orig-nfs-1', 
+    #'montage-orig-nfs-2', 
+    #'montage-orig-nfs-3',
+    #'rangeland-orig-ceph-1', 
+    #'rangeland-orig-ceph-2', 
+    #'rangeland-orig-ceph-3',
+    'rnaseq-orig-ceph-1', 
+    'rnaseq-orig-ceph-2', 
+    'rnaseq-orig-ceph-3',
+    'rnaseq-orig-nfs-1', 
+    'rnaseq-orig-nfs-2', 
+    'rnaseq-orig-nfs-3',
+    'sarek-orig-ceph-1', 
+    'sarek-orig-ceph-2', 
+    'sarek-orig-ceph-3',
+    'sarek-orig-nfs-1', 
+    'sarek-orig-nfs-2', 
+    'sarek-orig-nfs-3',
+]
 
 
 # Functions
@@ -63,8 +95,8 @@ def parse_trace_file(filepath):
 
 
 def print_usage_exit():
-    usage = "carbon-footprint $ python -m src.scripts.ExtractTimeline <trace-file-name> <ci-file-name> <min-watts> <max-watts>"
-    example = "carbon-footprint $ python -m src.scripts.ExtractTimeline test ci-test 65 219"
+    usage = "carbon-footprint $ python -m src.scripts.ExtractTimeline <ci-file-name> <min-watts> <max-watts>"
+    example = "carbon-footprint $ python -m src.scripts.ExtractTimeline ci-test 65 219"
 
     print(usage)
     print(example)
@@ -126,7 +158,7 @@ def get_tasks_by_hour_with_overhead(start_hour, end_hour, tasks):
         overheads.append(hour_overhead)
         i += step
 
-    task_overall_runtime = sum(runtimes)
+    # task_overall_runtime = sum(runtimes)
 
     return (tasks_by_hour, overheads)
 
@@ -240,7 +272,7 @@ def get_hours(arr):
     return hours
 
 
-def main(workflow, tasks, ci, min_watts, max_watts, overhead_hours):
+def explore_temporal_shifting_for_workflow(workflow, tasks_by_hour, ci, min_watts, max_watts, overhead_hours):
     # Identify Hours in Order
     hours_by_key = {}
 
@@ -294,18 +326,26 @@ def main(workflow, tasks, ci, min_watts, max_watts, overhead_hours):
             for oh_hour_ind in oh_hour_inds:
                 overhead += overhead_hours[oh_hour_ind]
 
-            #print(f'Overhead: {overhead / 1000}s')
-            # print(keys)
-            # print(min_keys)
-        #else:
-            #print(f'Overhead: 0s as minimum ci ran over consecutive hours for the entire workflow duration (no halt-resume)')
-
         saving = ((orig_carbon_emissions - carbon_emissions) / orig_carbon_emissions) * 100
 
-        output.append(f'{saving:.1f}%:{carbon_emissions}:{overhead}')
+        output.append(f'{saving:.1f}%:{carbon_emissions}:{overhead / 1000}')
 
-    # print('workflow,footprint,flexible-6h,flexible-12h,flexible-24h,flexible-48h,flexible-96h')  # unnecessary when script will run this script
-    print(','.join(output))
+    return ','.join(output)
+
+
+def main(workflows, ci, min_watts, max_watts):
+    results = []
+
+    for workflow in workflows:
+        (tasks_by_hour, overhead_hours) = extract_tasks_by_hour(workflow)
+        result = explore_temporal_shifting_for_workflow(workflow, tasks_by_hour, ci, min_watts, max_watts, overhead_hours)
+        results.append(result)
+
+    with open('output/workflows-temp-shift-interrupt.csv', 'w') as f:
+        f.write('workflow,footprint,flexible-6h,flexible-12h,flexible-24h,flexible-48h,flexible-96h\n')
+
+        for result in results:
+            f.write(f'{result}\n')
 
 
 # Main Script
@@ -313,14 +353,13 @@ if __name__ == '__main__':
     # Parse Arguments
     arguments = sys.argv[1:]
 
-    if len(arguments) != 4:
+    if len(arguments) != 3:
         print_usage_exit()
 
-    filename = arguments[0]
-    ci_filename = f"data/intensity/{arguments[1]}.csv"
-    min_watts = int(arguments[2])
-    max_watts = int(arguments[3])
+    filename = arguments[0]  # list of workflow traces
+    ci_filename = f"data/intensity/{arguments[0]}.csv"
+    min_watts = int(arguments[1])
+    max_watts = int(arguments[2])
     ci = parse_ci_intervals(ci_filename)
-    (tasks_by_hour, overhead_hours) = extract_tasks_by_hour(filename)
 
-    main(filename, tasks_by_hour, ci, min_watts, max_watts, overhead_hours)
+    main(WORKFLOWS, ci, min_watts, max_watts)
