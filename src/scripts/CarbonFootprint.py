@@ -113,8 +113,9 @@ def get_ci_for_interval(start, end, ci):
         diff_overall = (60 * (diff_hour - 1)) + (60 - start_min) + end_min
         avg_ci = (ci[start_key] * ((60 - start_min) / diff_overall)) + (ci[end_key] * (end_min / diff_overall))
 
+        # todo work for spanning multiple days (?!) review analysis code
         for i in range(1, diff_hour):
-            key = f"{str(int(start_hour) + i).zfill(2)}:00"
+            key = f"{start_month}/{start_day}-{str(int(start_hour) + i).zfill(2)}:00"
             avg_ci += ci[key] * (60 / diff_overall)
     elif diff_hour == 1:  # interval occurs across two adjacent hours
         diff_overall = (60 - start_min) + end_min
