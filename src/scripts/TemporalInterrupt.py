@@ -10,27 +10,21 @@ import numpy as np
 DEFAULT = "default"
 FILE = "csv"
 DELIMITER = ","
-MEMORY_COEFFICIENT = 0.392  # CCF Average (See Website)
-PUE = 1.67
-WORKFLOWS = [
+WORKFLOWS_M = [
+    'mag-orig-ceph-1', 
+    'mag-orig-ceph-2', 
+    'mag-orig-ceph-3',
+    'rangeland-orig-ceph-1', 
+    'rangeland-orig-ceph-2', 
+    'rangeland-orig-ceph-3',
+]
+WORKFLOWS_W_N = [
     'chipseq-orig-ceph-1', 
     'chipseq-orig-ceph-2', 
     'chipseq-orig-ceph-3',
     'chipseq-orig-nfs-1', 
     'chipseq-orig-nfs-2', 
     'chipseq-orig-nfs-3',
-    #'mag-orig-ceph-1', 
-    #'mag-orig-ceph-2', 
-    #'mag-orig-ceph-3',
-    #'montage-orig-ceph-1', 
-    #'montage-orig-ceph-2', 
-    #'montage-orig-ceph-3',
-    #'montage-orig-nfs-1', 
-    #'montage-orig-nfs-2', 
-    #'montage-orig-nfs-3',
-    #'rangeland-orig-ceph-1', 
-    #'rangeland-orig-ceph-2', 
-    #'rangeland-orig-ceph-3',
     'rnaseq-orig-ceph-1', 
     'rnaseq-orig-ceph-2', 
     'rnaseq-orig-ceph-3',
@@ -43,6 +37,14 @@ WORKFLOWS = [
     'sarek-orig-nfs-1', 
     'sarek-orig-nfs-2', 
     'sarek-orig-nfs-3',
+]
+WORKFLOWS_W_M = [
+    'montage-orig-ceph-1', 
+    'montage-orig-ceph-2', 
+    'montage-orig-ceph-3',
+    'montage-orig-nfs-1', 
+    'montage-orig-nfs-2', 
+    'montage-orig-nfs-3',
 ]
 
 
@@ -215,7 +217,7 @@ def calculate_carbon_footprint_for_task(task: CarbonRecord, min_watts, max_watts
     # CPU Usage (%)
     cpu_usage = task.get_cpu_usage() / (100.0 * no_cores)
     # Memory (GB)
-    memory = task.get_memory()
+    memory = task.get_memory() / 1000000000  # bytes to GB
     # Core Energy Consumption (without PUE)
     core_consumption = time * (min_watts + cpu_usage * (max_watts - min_watts)) * 0.001  # convert from W to kW
     # Memory Power Consumption (without PUE)
@@ -362,4 +364,4 @@ if __name__ == '__main__':
     max_watts = int(arguments[4])
     ci = parse_ci_intervals(ci_filename)
 
-    main(WORKFLOWS, ci, min_watts, max_watts, pue, memory_coefficient)
+    main(WORKFLOWS_M, ci, min_watts, max_watts, pue, memory_coefficient)

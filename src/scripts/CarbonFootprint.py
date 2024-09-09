@@ -43,18 +43,6 @@ def get_cpu_min_max(cpu_model):
         return (CPU_STATS[DEFAULT][0], CPU_STATS[DEFAULT][1])
 
 
-def read_config_value(profile, entry):
-   config = configparser.ConfigParser()
-   config.read('config/trace.conf')
-   return config[profile][entry]
-
-
-def read_config(profile):
-    global FILE, DELIMITER
-    FILE = read_config_value(profile, "file")
-    DELIMITER = read_config_value(profile, "delimiter")
-
-
 # todo: timezone conversion for non-utc times
 
 
@@ -228,7 +216,7 @@ def estimate_task_energy_consumption_ga(record: CarbonRecord, core_power_draw, m
     # CPU Usage (%)
     cpu_usage = record.get_cpu_usage() / (100.0 * no_cores)
     # Memory (GB)
-    memory = record.get_memory()
+    memory = record.get_memory() / 1000000000  # bytes to GB
     # Overall Energy Consumption (without PUE)
     core_consumption = time * no_cores * core_power_draw * cpu_usage * 0.001  # convert from W to kW
     # Memory Consumption (without PUE)
@@ -283,7 +271,7 @@ def estimate_task_energy_consumption_ccf(task: CarbonRecord, min_watts, max_watt
     # CPU Usage (%)
     cpu_usage = task.get_cpu_usage() / (100.0 * no_cores)
     # Memory (GB)
-    memory = task.get_memory()
+    memory = task.get_memory() / 1000000000  # bytes to GB
     # Core Energy Consumption (without PUE)
     core_consumption = time * (min_watts + cpu_usage * (max_watts - min_watts)) * 0.001  # convert from W to kW
     # Memory Power Consumption (without PUE)
