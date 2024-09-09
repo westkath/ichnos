@@ -207,7 +207,7 @@ def extract_tasks_by_hour(filename):
     return get_tasks_by_hour(data_records)
 
 
-def calculate_carbon_footprint_for_task(task: CarbonRecord, min_watts, max_watts):
+def calculate_carbon_footprint_for_task(task: CarbonRecord, min_watts, max_watts, memory_coefficient):
     # Time (h)
     time = task.get_realtime() / 1000 / 3600  # convert from ms to h
     # Number of Cores (int)
@@ -219,12 +219,12 @@ def calculate_carbon_footprint_for_task(task: CarbonRecord, min_watts, max_watts
     # Core Energy Consumption (without PUE)
     core_consumption = time * (min_watts + cpu_usage * (max_watts - min_watts)) * 0.001  # convert from W to kW
     # Memory Power Consumption (without PUE)
-    memory_consumption = memory * MEMORY_COEFFICIENT * time * 0.001  # convert from W to kW
+    memory_consumption = memory * memory_coefficient * time * 0.001  # convert from W to kW
     # Overall and Memory Consumption (kW) (without PUE)
     return (core_consumption, memory_consumption)
 
 
-def calculate_carbon_footprint(tasks_by_hour, ci, pue: float, min_watts, max_watts):
+def calculate_carbon_footprint(tasks_by_hour, ci, pue: float, min_watts, max_watts, memory_coefficient):
     total_energy = 0.0
     total_energy_pue = 0.0
     total_memory_energy = 0.0
@@ -242,10 +242,10 @@ def calculate_carbon_footprint(tasks_by_hour, ci, pue: float, min_watts, max_wat
             ci_val = ci[ci_key] 
 
             for task in tasks:
-                (energy, memory) = calculate_carbon_footprint_for_task(task, min_watts, max_watts)
+                (energy, memory) = calculate_carbon_footprint_for_task(task, min_watts, max_watts, memory_coefficient)
                 energy_pue = energy * pue
                 memory_pue = memory * pue
-                task_footprint = energy_pue * ci_val
+                task_footprint = (energy_pue + memory_pue) * ci_val
                 task.set_energy(energy_pue)
                 task.set_co2e(task_footprint)
                 task.set_avg_ci(ci_val)
@@ -272,7 +272,7 @@ def get_hours(arr):
     return hours
 
 
-def explore_temporal_shifting_for_workflow(workflow, tasks_by_hour, ci, min_watts, max_watts, overhead_hours):
+def explore_temporal_shifting_for_workflow(workflow, tasks_by_hour, ci, min_watts, max_watts, overhead_hours, pue, memory_coefficient):
     # Identify Hours in Order
     hours_by_key = {}
 
@@ -287,8 +287,7 @@ def explore_temporal_shifting_for_workflow(workflow, tasks_by_hour, ci, min_watt
             hours_by_key[key] = tasks
 
     # Calculate Original Carbon Footprint
-    (orig_energy, orig_energy_pue, orig_memory, orig_memory_pue, orig_carbon_emissions) = calculate_carbon_footprint(tasks_by_hour, ci, PUE, min_watts, max_watts)
-    #print(f'CF (original time): {orig_carbon_emissions}gCO2e')
+    (_, _, _, _, orig_carbon_emissions) = calculate_carbon_footprint(tasks_by_hour, ci, pue, min_watts, max_watts, memory_coefficient)
 
     # Prepare Script Output
     output = [workflow, str(orig_carbon_emissions)]
@@ -315,9 +314,8 @@ def explore_temporal_shifting_for_workflow(workflow, tasks_by_hour, ci, min_watt
             ci_for_shifted_trace[keys[i]] = ci[min_keys[i]]
 
         # Report Optimal CI Temporal Shifting Carbon Footprint
-        (energy, energy_pue, memory, memory_pue, carbon_emissions) = calculate_carbon_footprint(tasks_by_hour, ci_for_shifted_trace, PUE, min_watts, max_watts)
-        #print(f'CF (shift {shift} hours): {carbon_emissions}gCO2e')
-    
+        (_, _, _, _, carbon_emissions) = calculate_carbon_footprint(tasks_by_hour, ci_for_shifted_trace, pue, min_watts, max_watts, memory_coefficient)
+
         # Report Overhead of Interrupting Temporal Shifting
         oh_hour_inds = get_hours(ind)
         overhead = 0
@@ -333,12 +331,12 @@ def explore_temporal_shifting_for_workflow(workflow, tasks_by_hour, ci, min_watt
     return ','.join(output)
 
 
-def main(workflows, ci, min_watts, max_watts):
+def main(workflows, ci, min_watts, max_watts, pue, memory_coefficient):
     results = []
 
     for workflow in workflows:
         (tasks_by_hour, overhead_hours) = extract_tasks_by_hour(workflow)
-        result = explore_temporal_shifting_for_workflow(workflow, tasks_by_hour, ci, min_watts, max_watts, overhead_hours)
+        result = explore_temporal_shifting_for_workflow(workflow, tasks_by_hour, ci, min_watts, max_watts, overhead_hours, pue, memory_coefficient)
         results.append(result)
 
     with open('output/workflows-temp-shift-interrupt.csv', 'w') as f:
@@ -353,13 +351,15 @@ if __name__ == '__main__':
     # Parse Arguments
     arguments = sys.argv[1:]
 
-    if len(arguments) != 3:
+    if len(arguments) != 5:
         print_usage_exit()
 
     filename = arguments[0]  # list of workflow traces
     ci_filename = f"data/intensity/{arguments[0]}.csv"
-    min_watts = int(arguments[1])
-    max_watts = int(arguments[2])
+    pue = float(arguments[1])
+    memory_coefficient = float(arguments[2])
+    min_watts = int(arguments[3])
+    max_watts = int(arguments[4])
     ci = parse_ci_intervals(ci_filename)
 
-    main(WORKFLOWS, ci, min_watts, max_watts)
+    main(WORKFLOWS, ci, min_watts, max_watts, pue, memory_coefficient)
