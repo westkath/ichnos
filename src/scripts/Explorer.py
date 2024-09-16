@@ -42,6 +42,7 @@ def shift_trace(trace, delim, shift=DEFAULT_SHIFT):
     return (trace_backward, trace, trace_forward)
 
 
+# todo update script here re command 16/09 
 def calculate_footprint(trace, ci, folder):
     command = f"{trace} {ci} 1.67 12 0.392 default {folder}"
     return get_carbon_footprint(command)
