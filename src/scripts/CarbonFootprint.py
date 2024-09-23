@@ -355,8 +355,8 @@ def parse_arguments(args):
         arguments[CI] = args[2]
         arguments[PUE] = float(args[3])
         arguments[MEMORY_COEFFICIENT] = float(args[4])
-        arguments[MIN_WATTS] = int(args[5])
-        arguments[MAX_WATTS] = int(args[6])
+        arguments[MIN_WATTS] = float(args[5])
+        arguments[MAX_WATTS] = float(args[6])
     elif method == BOTH:
         if len(args) != 8:
             print_usage_exit()
@@ -366,8 +366,8 @@ def parse_arguments(args):
         arguments[PUE] = float(args[3])
         arguments[CORE_POWER_DRAW] = float(args[4])
         arguments[MEMORY_COEFFICIENT] = float(args[5])
-        arguments[MIN_WATTS] = int(args[6])
-        arguments[MAX_WATTS] = int(args[7])
+        arguments[MIN_WATTS] = float(args[6])
+        arguments[MAX_WATTS] = float(args[7])
     else:
         print_usage_exit()
 
