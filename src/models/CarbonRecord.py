@@ -1,4 +1,4 @@
-HEADERS = "name,co2e,energy,realtime,cpu_model,cpu_count,cpu_powerdraw,cpu_usage,memory,memory_powerdraw"
+HEADERS = "name,co2e,energy,avg_ci,realtime,cpu_model,cpu_count,cpu_powerdraw,cpu_usage,memory,memory_powerdraw"
 
 class CarbonRecord:
     def __init__(self, energy, co2e, realtime, start, complete, core_count, 
@@ -7,10 +7,12 @@ class CarbonRecord:
         self._co2e = co2e
         self._realtime = realtime
 
-        # if start is not None and complete is not None:
-        #     self._start = start
-        #     self._complete = complete
-        #     self._time_diff = (complete - start).total_seconds()
+        if start is not None and complete is not None:
+            self._start = start
+            self._complete = complete
+        else:
+            self._start = None
+            self._complete = None
 
         self._core_count = core_count
         self._core_powerdraw = core_powerdraw
@@ -19,11 +21,28 @@ class CarbonRecord:
         self._memory = memory
         self._name = name
 
+        self._avg_ci = None
+
     def get_realtime(self):
         return self._realtime
 
+    def set_realtime(self, realtime):
+        self._realtime = realtime
+
     def get_core_count(self):
         return self._core_count
+
+    def get_start(self):
+        return self._start
+
+    def set_start(self, start):
+        self._start = start
+
+    def get_complete(self):
+        return self._complete
+
+    def set_complete(self, complete):
+        self._complete = complete
 
     def get_cpu_powerdraw(self):
         return self._core_powerdraw
@@ -49,11 +68,20 @@ class CarbonRecord:
     def get_co2e(self):
         return self._co2e
 
+    def get_cpu_model(self):
+        return self._cpu_model
+
     def set_energy(self, energy):
         self._energy = energy
 
     def set_co2e(self, co2e):
         self._co2e = co2e
 
+    def set_avg_ci(self, ci):
+        self._avg_ci = ci
+
     def __str__(self):
-        return f"{self._name},{self._co2e},{self._energy},{self._realtime},{self._cpu_model},{self._core_count},{self._core_powerdraw},{self._cpu_usage},{self._memory},{self._memory_powerdraw}"
+        if not hasattr(self, '_memory_powerdraw'):
+            self._memory_powerdraw = None
+
+        return f"{self._name},{self._co2e},{self._energy},{self._avg_ci},{self._realtime},{self._cpu_model},{self._core_count},{self._core_powerdraw},{self._cpu_usage},{self._memory},{self._memory_powerdraw}"

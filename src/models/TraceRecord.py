@@ -26,6 +26,16 @@ class TraceRecord:
 
         self._memory = self._raw['memory']
         self._name = self._raw['name']
+        self._task_id = self._raw['task_id']
+
+        if 'hash' in self._raw:
+            self._hash = self._raw['hash']
+        else:
+            self._hash = None
+
+        self._process = self._raw['process']
+        self._realtime = self._raw['realtime']
+        self._submit = self._raw['submit']
 
     def get_raw_data_map(self, fields, data, delimiter):
         raw = {}
@@ -47,14 +57,12 @@ class TraceRecord:
             #     value = datetime.strptime(value, "%Y-%m-%d %H:%M:%S.%f")
             elif field == "duration" or field == "realtime":  # format (xh) (ym) (zs)
                 parts = value.split(" ")
-                if len(parts) == 1:
-                    value = float(parts[0][:-1])
-                elif len(parts) == 2:
-                    value = (float(parts[0][:-1]) * 60) + float(parts[1][:-1])
-                elif len(parts) == 3:
-                    value = (float(parts[0][:-1]) * 60 * 60) + (float(parts[1][:-1]) * 60) + float(parts[2][:-1])
+                value = float(value.strip())
             elif field == "%cpu":  # format x.y%
-                value = float(value[:-1])
+                if value[:-1] == '':
+                    value = 0.0
+                else:
+                    value = float(value[:-1])
             elif field == "cpus":
                 value = int(value)
 
@@ -82,6 +90,33 @@ class TraceRecord:
 
     def parse_memory(self):
         return self._memory  # 4 GB check what others look like ? 
+
+    def get_cpu_count(self):
+        return self._cpu_count
+    
+    def get_cpu_model(self):
+        return self._cpu_model
+
+    def get_task_id(self):
+        return self._task_id
+    
+    def get_hash(self):
+        return self._hash
+
+    def get_process(self):
+        return self._process
+
+    def get_realtime(self):
+        return self._realtime
+
+    def get_submit(self):
+        return self._submit
+
+    def get_complete(self):
+        return self._complete
+
+    def get_start(self):
+        return self._start
 
     def __str__(self):
         return f"[TraceRecord: {str(self._raw)}]"
