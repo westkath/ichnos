@@ -24,6 +24,10 @@ DEFAULT_MEMORY_POWER_DRAW = 0.392  # W/GB
 
 
 # Functions
+def linear_power_model(cpu_usage, min_watts, max_watts):
+    return min_watts + cpu_usage * (max_watts - min_watts)
+
+
 def read_cpu_min_max():
     global CPU_STATS
 
@@ -215,7 +219,7 @@ def estimate_task_energy_consumption_ccf(task: CarbonRecord, min_watts, max_watt
     # Memory (GB)
     memory = task.get_memory() / 1000000000  # bytes to GB
     # Core Energy Consumption (without PUE)
-    core_consumption = time * (min_watts + cpu_usage * (max_watts - min_watts)) * 0.001  # convert from W to kW
+    core_consumption = time * linear_power_model(cpu_usage, min_watts, max_watts) * 0.001  # convert from W to kW
     # Memory Power Consumption (without PUE)
     memory_consumption = memory * memory_coefficient * time * 0.001  # convert from W to kW
     # Overall and Memory Consumption (kW) (without PUE)
