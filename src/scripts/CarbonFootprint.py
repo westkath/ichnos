@@ -19,6 +19,8 @@ MAX_WATTS = "max-watts"
 GA = "GA"
 CCF = "CCF"
 BOTH = "BOTH"
+DEFAULT_PUE_VALUE = 1.0  # Disregard PUE if 1.0
+DEFAULT_MEMORY_POWER_DRAW = 0.392  # W/GB
 
 
 # Functions
@@ -94,13 +96,8 @@ def parse_trace_file(filepath):
 
 
 def print_usage_exit():
-    usage_ga = "Green Algorithms (only):                   python -m src.scripts.CarbonFootprint GA <trace> <ci-value> <pue> <core-power-draw> <memory-coeff>"
-    usage_ccf = "Cloud Carbon Footprint (only):             python -m src.scripts.CarbonFootprint CCF <trace> <ci-file> <pue> <memory-coeff> <min-watts> <max-watts>"
-    usage_both = "Green Algorithms + Cloud Carbon Footprint: python -m src.scripts.CarbonFootprint BOTH <trace> <ci-file> <pue> <core-power-draw> <memory-coeff> <min-watts> <max-watts>"
-
-    print(usage_ga)
-    print(usage_ccf)
-    print(usage_both)
+    usage = "Ichnos (Linear): python -m src.scripts.CarbonFootprint <trace-name> <ci-value|ci-file-name> <min-watts> <max-watts> <pue=1.0> <memory-coeff=0.392>"
+    print(usage)
     exit(-1)
 
 
@@ -207,61 +204,6 @@ def extract_tasks_by_hour(filename):
     return get_tasks_by_hour(data_records)
 
 
-# Estimate Energy Consumption using GA Methodology (PSF is not used for CO2e of 1 pipeline run)
-def estimate_task_energy_consumption_ga(record: CarbonRecord, core_power_draw, memory_coefficient):
-    # Time (h)
-    time = record.get_realtime() / 1000 / 3600  # convert from ms to h
-    # Number of Cores (int)
-    no_cores = record.get_core_count()
-    # CPU Usage (%)
-    cpu_usage = record.get_cpu_usage() / (100.0 * no_cores)
-    # Memory (GB)
-    memory = record.get_memory() / 1000000000  # bytes to GB
-    # Overall Energy Consumption (without PUE)
-    core_consumption = time * no_cores * core_power_draw * cpu_usage * 0.001  # convert from W to kW
-    # Memory Consumption (without PUE)
-    memory_consumption = time * memory * memory_coefficient * 0.001  # convert from W to kW
-
-    # Overall and Memory Consumption (kW) (without PUE)
-    return (core_consumption, memory_consumption)
-
-
-# Estimate Carbon Footprint using Green Algorithms Method 
-def calculate_carbon_footprint_ga(tasks_by_hour, ci, pue: float, core_power_draw, memory_coefficient):
-    total_energy = 0.0
-    total_energy_pue = 0.0
-    total_memory_energy = 0.0
-    total_memory_energy_pue = 0.0
-    total_carbon_emissions = 0.0
-
-    for hour, tasks in tasks_by_hour.items():
-        if len(tasks) > 0:
-            if type(ci) == dict:
-                hour_ts = to_timestamp(hour)
-                month = str(hour_ts.month).zfill(2)
-                day = str(hour_ts.day).zfill(2)
-                hh = str(hour_ts.hour).zfill(2)
-                mm = str(hour_ts.minute).zfill(2)
-                ci_key = f'{month}/{day}-{hh}:{mm}'
-                ci_value = ci[ci_key] 
-
-            for task in tasks:
-                (energy, memory) = estimate_task_energy_consumption_ga(task, core_power_draw, memory_coefficient)
-                energy_pue = energy * pue
-                memory_pue = memory * pue
-                task_footprint = (energy_pue + memory_pue) * ci_value
-                task.set_energy(energy_pue)
-                task.set_co2e(task_footprint)
-                task.set_avg_ci(ci_value)
-                total_energy += energy
-                total_energy_pue += energy_pue
-                total_memory_energy += memory
-                total_memory_energy_pue += memory_pue
-                total_carbon_emissions += task_footprint
-
-    return (total_energy, total_energy_pue, total_memory_energy, total_memory_energy_pue, total_carbon_emissions)
-
-
 # Estimate Energy Consumption using CCF Methodology
 def estimate_task_energy_consumption_ccf(task: CarbonRecord, min_watts, max_watts, memory_coefficient):
     # Time (h)
@@ -280,7 +222,7 @@ def estimate_task_energy_consumption_ccf(task: CarbonRecord, min_watts, max_watt
     return (core_consumption, memory_consumption)
 
 
-# Estimate Carbon Footprint using Cloud Carbon Footprint Method
+# Estimate Carbon Footprint using CCF Methodology
 def calculate_carbon_footprint_ccf(tasks_by_hour, ci, pue: float, min_watts, max_watts, memory_coefficient):
     total_energy = 0.0
     total_energy_pue = 0.0
@@ -291,13 +233,16 @@ def calculate_carbon_footprint_ccf(tasks_by_hour, ci, pue: float, min_watts, max
 
     for hour, tasks in tasks_by_hour.items():
         if len(tasks) > 0:
-            hour_ts = to_timestamp(hour)
-            month = str(hour_ts.month).zfill(2)
-            day = str(hour_ts.day).zfill(2)
-            hh = str(hour_ts.hour).zfill(2)
-            mm = str(hour_ts.minute).zfill(2)
-            ci_key = f'{month}/{day}-{hh}:{mm}'
-            ci_val = ci[ci_key] 
+            if isinstance(ci, float):
+                ci_val = ci
+            else:
+                hour_ts = to_timestamp(hour)
+                month = str(hour_ts.month).zfill(2)
+                day = str(hour_ts.day).zfill(2)
+                hh = str(hour_ts.hour).zfill(2)
+                mm = str(hour_ts.minute).zfill(2)
+                ci_key = f'{month}/{day}-{hh}:{mm}'
+                ci_val = ci[ci_key] 
 
             for task in tasks:
                 (energy, memory) = estimate_task_energy_consumption_ccf(task, min_watts, max_watts, memory_coefficient)
@@ -331,47 +276,33 @@ def get_hours(arr):
     return hours
 
 
+def check_if_float(value):
+    return value.replace('.', '').isnumeric()
+
+
 def parse_arguments(args):
-    if len(args) < 1:
+    if len(args) != 4 and len(args) != 6:
         print_usage_exit()
 
-    method = args[0]
     arguments = {}
+    arguments[TRACE] = args[0]
 
-    if method == GA:  
-        if len(args) != 6:
-            print_usage_exit()
-        else:
-            arguments[TRACE] = args[1]
-            arguments[CI] = float(args[2])
-            arguments[PUE] = float(args[3])
-            arguments[CORE_POWER_DRAW] = float(args[4])
-            arguments[MEMORY_COEFFICIENT] = float(args[5])
-    elif method == CCF:
-        if len(args) != 7:
-            print_usage_exit()
-
-        arguments[TRACE] = args[1]
-        arguments[CI] = args[2]
-        arguments[PUE] = float(args[3])
-        arguments[MEMORY_COEFFICIENT] = float(args[4])
-        arguments[MIN_WATTS] = float(args[5])
-        arguments[MAX_WATTS] = float(args[6])
-    elif method == BOTH:
-        if len(args) != 8:
-            print_usage_exit()
-
-        arguments[TRACE] = args[1]
-        arguments[CI] = args[2]
-        arguments[PUE] = float(args[3])
-        arguments[CORE_POWER_DRAW] = float(args[4])
-        arguments[MEMORY_COEFFICIENT] = float(args[5])
-        arguments[MIN_WATTS] = float(args[6])
-        arguments[MAX_WATTS] = float(args[7])
+    if check_if_float(args[1]):
+        arguments[CI] = float(args[1])
     else:
-        print_usage_exit()
+        arguments[CI] = args[1]
 
-    return (method, arguments)
+    arguments[MIN_WATTS] = float(args[2])
+    arguments[MAX_WATTS] = float(args[3])
+
+    if len(args) == 6:
+        arguments[PUE] = float(args[4])
+        arguments[MEMORY_COEFFICIENT] = float(args[5])
+    else:
+        arguments[PUE] = DEFAULT_PUE_VALUE
+        arguments[MEMORY_COEFFICIENT] = DEFAULT_MEMORY_POWER_DRAW
+
+    return arguments
 
 
 def write_trace_file(folder, trace_file, records):
@@ -395,8 +326,7 @@ def write_summary_file(folder, trace_file, content):
 if __name__ == '__main__':
     # Parse Arguments
     args = sys.argv[1:]
-    (method, arguments) = parse_arguments(args)
-    filename = arguments[TRACE]
+    arguments = parse_arguments(args)
 
     # Data
     workflow = arguments[TRACE]
@@ -413,68 +343,32 @@ if __name__ == '__main__':
     summary += "Carbon Footprint Trace:\n"
     summary += f"- carbon-intensity: {arguments[CI]}\n"
     summary += f"- power-usage-effectiveness: {pue}\n"
-
-    if CORE_POWER_DRAW in arguments:
-        summary += f"- core-power-draw: {arguments[CORE_POWER_DRAW]}\n"
-    else:
-        summary += f"- min to max watts: {min_watts}W to {max_watts}W"
-
+    summary += f"- min to max watts: {min_watts}W to {max_watts}W\n"
     summary += f"- memory-power-draw: {memory_coefficient}\n"
 
-    if method == GA:
-        ci_value = float(arguments[CI])
-        core_power_draw = arguments[CORE_POWER_DRAW]
-        ga = calculate_carbon_footprint_ga(tasks_by_hour, ci_value, pue, core_power_draw, memory_coefficient)
-        ga_energy, ga_energy_pue, ga_memory, ga_memory_pue, ga_carbon_emissions = ga
-
-        summary += "\nGreen Algorithms Method:\n"
-        summary += f"- Energy Consumption (exc. PUE): {ga_energy}kWh\n"
-        summary += f"- Energy Consumption (inc. PUE): {ga_energy_pue}kWh\n"
-        summary += f"- Memory Energy Consumption (exc. PUE): {ga_memory}kWh\n"
-        summary += f"- Memory Energy Consumption (inc. PUE): {ga_memory_pue}kWh\n"
-        summary += f"- Carbon Emissions: {ga_carbon_emissions}gCO2e\n"
-
-        print(f"Carbon Emissions (GA): {ga_carbon_emissions}gCO2e")
-    elif method == CCF:
-        ci_filename = f"data/intensity/{arguments[CI]}.csv"
+    if isinstance(arguments[CI], float):
+        ci = arguments[CI]
+    else:
+        ci_filename = f"data/intensity/{arguments[CI]}.{FILE}"
         ci = parse_ci_intervals(ci_filename)
-        (ccf, records) = calculate_carbon_footprint_ccf(tasks_by_hour, ci, pue, min_watts, max_watts, memory_coefficient)
-        ccf_energy, ccf_energy_pue, ccf_memory, ccf_memory_pue, ccf_carbon_emissions = ccf
 
-        summary += "\nCloud Carbon Footprint Method:\n"
-        summary += f"- Energy Consumption (exc. PUE): {ccf_energy}kWh\n"
-        summary += f"- Energy Consumption (inc. PUE): {ccf_energy_pue}kWh\n"
-        summary += f"- Memory Energy Consumption (exc. PUE): {ccf_memory}kWh\n"
-        summary += f"- Memory Energy Consumption (inc. PUE): {ccf_memory_pue}kWh\n"
-        summary += f"- Carbon Emissions: {ccf_carbon_emissions}gCO2e"
+    (ccf, records) = calculate_carbon_footprint_ccf(tasks_by_hour, ci, pue, min_watts, max_watts, memory_coefficient)
+    ccf_energy, ccf_energy_pue, ccf_memory, ccf_memory_pue, ccf_carbon_emissions = ccf
 
-        print(f"Carbon Emissions (CCF): {ccf_carbon_emissions}gCO2e")
-    elif method == BOTH:
-        ci_filename = f"data/intensity/{arguments[CI]}.csv"
-        ci = parse_ci_intervals(ci_filename) 
-        core_power_draw = arguments[CORE_POWER_DRAW]
-        (ccf, records) = calculate_carbon_footprint_ccf(tasks_by_hour, ci, pue, min_watts, max_watts, memory_coefficient)
-        ga = calculate_carbon_footprint_ga(tasks_by_hour, ci, pue, core_power_draw, memory_coefficient)
-        ccf_energy, ccf_energy_pue, ccf_memory, ccf_memory_pue, ccf_carbon_emissions = ccf
-        ga_energy, ga_energy_pue, ga_memory, ga_memory_pue, ga_carbon_emissions = ga
+    summary += "\nCloud Carbon Footprint Method:\n"
+    summary += f"- Energy Consumption (exc. PUE): {ccf_energy}kWh\n"
+    summary += f"- Energy Consumption (inc. PUE): {ccf_energy_pue}kWh\n"
+    summary += f"- Memory Energy Consumption (exc. PUE): {ccf_memory}kWh\n"
+    summary += f"- Memory Energy Consumption (inc. PUE): {ccf_memory_pue}kWh\n"
+    summary += f"- Carbon Emissions: {ccf_carbon_emissions}gCO2e"
 
-        summary += "\nGreen Algorithms Method:\n"
-        summary += f"- Energy Consumption (exc. PUE): {ga_energy}kWh\n"
-        summary += f"- Energy Consumption (inc. PUE): {ga_energy_pue}kWh\n"
-        summary += f"- Memory Energy Consumption (exc. PUE): {ga_memory}kWh\n"
-        summary += f"- Memory Energy Consumption (inc. PUE): {ga_memory_pue}kWh\n"
-        summary += f"- Carbon Emissions: {ga_carbon_emissions}gCO2e\n"
-
-        summary += "\nCloud Carbon Footprint Method:\n"
-        summary += f"- Energy Consumption (exc. PUE): {ccf_energy}kWh\n"
-        summary += f"- Energy Consumption (inc. PUE): {ccf_energy_pue}kWh\n"
-        summary += f"- Memory Energy Consumption (exc. PUE): {ccf_memory}kWh\n"
-        summary += f"- Memory Energy Consumption (inc. PUE): {ccf_memory_pue}kWh\n"
-        summary += f"- Carbon Emissions: {ccf_carbon_emissions}gCO2e"
-
-        print(f"Carbon Emissions (GA): {ga_carbon_emissions}gCO2e")
-        print(f"Carbon Emissions (CCF): {ccf_carbon_emissions}gCO2e")
+    print(f"Carbon Emissions (CCF): {ccf_carbon_emissions}gCO2e")
 
     # Report Summary
-    write_summary_file("output", filename + '-' + arguments[CI], summary)
-    write_trace_file("output", filename + '-' + arguments[CI], records)
+    if isinstance(ci, float):
+        ci = str(int(ci))
+    else:
+        ci = arguments[CI]
+
+    write_summary_file("output", workflow + "-" + ci, summary)
+    write_trace_file("output", workflow + "-" + ci, records)
