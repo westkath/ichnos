@@ -28,27 +28,6 @@ def linear_power_model(cpu_usage, min_watts, max_watts):
     return min_watts + cpu_usage * (max_watts - min_watts)
 
 
-def read_cpu_min_max():
-    global CPU_STATS
-
-    with open('data/specs/cpu.csv', 'r') as file:
-        data = file.readlines()[1:]
-
-    for line in data:
-        parts = line.split(',')
-
-        if parts[0] not in CPU_STATS:
-            CPU_STATS[parts[0]] = [int(item.strip()) for item in parts[1:]]
-
-
-def get_cpu_min_max(cpu_model):
-    if cpu_model in CPU_STATS:
-        return (CPU_STATS[cpu_model][0], CPU_STATS[cpu_model][1])
-    else:
-        # print(f"Could not find CPU [{cpu_model}], please add to specs/cpu.csv for more accurate readings.")
-        return (CPU_STATS[DEFAULT][0], CPU_STATS[DEFAULT][1])
-
-
 # todo: timezone conversion for non-utc times
 
 
