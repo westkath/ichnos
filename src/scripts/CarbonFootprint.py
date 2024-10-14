@@ -305,12 +305,7 @@ def write_summary_file(folder, trace_file, content):
         file.write(content)
 
 
-# Main Script
-if __name__ == '__main__':
-    # Parse Arguments
-    args = sys.argv[1:]
-    arguments = parse_arguments(args)
-
+def main(arguments):
     # Data
     workflow = arguments[TRACE]
     pue = arguments[PUE]
@@ -355,3 +350,17 @@ if __name__ == '__main__':
 
     write_summary_file("output", workflow + "-" + ci, summary)
     write_trace_file("output", workflow + "-" + ci, records)
+
+    return (summary, ccf_carbon_emissions)
+
+
+def get_carbon_footprint(command):
+    arguments = parse_arguments(command.split(' '))
+    return main(arguments)
+
+
+# Main Script
+if __name__ == '__main__':
+    # Parse Arguments
+    args = sys.argv[1:]
+    arguments = parse_arguments(args)

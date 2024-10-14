@@ -19,6 +19,8 @@ DELIM = "delim"
 DIRECTION = "direction"
 SHIFT = "shift"
 TRACE_FILENAME = "filename"
+MIN_WATTS = "min-watts"
+MAX_WATTS = "max-watts"
 
 
 # Functions
@@ -42,9 +44,8 @@ def shift_trace(trace, delim, shift=DEFAULT_SHIFT):
     return (trace_backward, trace, trace_forward)
 
 
-# todo update script here re command 16/09 
-def calculate_footprint(trace, ci, folder):
-    command = f"{trace} {ci} 1.67 12 0.392 default {folder}"
+def calculate_footprint(trace, ci, min_watts, max_watts):
+    command = f"{trace} {ci} {min_watts} {max_watts} 1.0 0.392"
     return get_carbon_footprint(command)
 
 
@@ -52,13 +53,13 @@ def report_summary(folder, settings, results, shift):
     file_prefix = folder.split("/")[1]
 
     with open(folder + f"/{file_prefix}~summary.txt", "w+") as file:
-        for (trace, (summary, _, _)) in results:
+        for (trace, (summary, cf)) in results:
             file.write(f"Trace Report for [{trace}] using CI Data [{settings[CI]}] with Shift [{shift}]\n")
             file.write(f"{summary}\n\n")
 
     with open(folder + f"/{file_prefix}~footprint.csv", "w+") as file:
-        for (trace, (_, cf_ga, cf_ccf)) in results:
-            file.write(f"{trace},{cf_ga},{cf_ccf}\n")
+        for (trace, (_, cf)) in results:
+            file.write(f"{trace},{cf}\n")
 
     print(f"[Explorer] Finished - View Results in [{folder}/summary.txt]")
 
@@ -71,26 +72,28 @@ def get_output_folder(trace, ci):
 
 
 def print_usage_exit():
-    usage = "[Explorer] Expected Usage: py explorer.py <trace-file> <ci-file> <config> <shift>"#
-    example = "[Explorer] Example Use: py explorer.py test.csv ci-20240218.csv default 12"
+    usage = "[Explorer] Expected Usage: py explorer.py <trace-file> <ci-file> <config> <shift> <min-watts> <max-watts>"
+    example = "[Explorer] Example Use: py explorer.py test.csv ci-20240218.csv default 12 30 80"
     print(usage)
     print(example)
     exit(-1)
 
 
 def parse_arguments(arguments):
-    if len(arguments) != 4:
+    if len(arguments) != 6:
         print_usage_exit()
 
     return {
         TRACE: arguments[0].strip(),
         CI: arguments[1].strip(),
         CONFIG: arguments[2].strip(),
-        SHIFT: int(arguments[3].strip())
+        SHIFT: int(arguments[3].strip()),
+        MIN_WATTS: float(arguments[4].strip()),
+        MAX_WATTS: float(arguments[5].strip())
     }
 
 
-def shift_trace_both_directions_by_h(trace, delim, shift_by, ci, output_folder):
+def shift_trace_both_directions_by_h(trace, delim, shift_by, ci, min_watts, max_watts):
     backward_traces = []
     forward_traces = []
 
@@ -109,14 +112,15 @@ def shift_trace_both_directions_by_h(trace, delim, shift_by, ci, output_folder):
         forward_traces.append(trace_fwd)
 
     footprints = []
+    ci = ci.split('.')[0]
 
     for trace_bwd in backward_traces:
-        footprints.append((trace_bwd, calculate_footprint(trace_bwd, ci, output_folder)))
+        footprints.append((trace_bwd, calculate_footprint(trace_bwd, ci, min_watts, max_watts)))
 
-    footprints.append((trace, calculate_footprint(trace, ci, output_folder)))
+    footprints.append((trace, calculate_footprint(trace, ci, min_watts, max_watts)))
 
     for trace_fwd in forward_traces:
-        footprints.append((trace_fwd, calculate_footprint(trace_fwd, ci, output_folder)))
+        footprints.append((trace_fwd, calculate_footprint(trace_fwd, ci, min_watts, max_watts)))
 
     return footprints
 
@@ -129,5 +133,5 @@ if __name__ == "__main__":
     output_folder = get_output_folder(settings[TRACE], settings[CI])
     os.makedirs(output_folder, exist_ok=True)
 
-    footprints = shift_trace_both_directions_by_h(settings[TRACE], ",", settings[SHIFT], settings[CI], output_folder)
+    footprints = shift_trace_both_directions_by_h(settings[TRACE], ",", settings[SHIFT], settings[CI], settings[MIN_WATTS], settings[MAX_WATTS])
     report_summary(output_folder, settings, footprints, "custom")
