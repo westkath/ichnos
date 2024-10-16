@@ -21,6 +21,7 @@ CCF = "CCF"
 BOTH = "BOTH"
 DEFAULT_PUE_VALUE = 1.0  # Disregard PUE if 1.0
 DEFAULT_MEMORY_POWER_DRAW = 0.392  # W/GB
+RESERVED_MEMORY = "reserved-memory"
 
 
 # Functions
@@ -206,12 +207,14 @@ def estimate_task_energy_consumption_ccf(task: CarbonRecord, min_watts, max_watt
 
 
 # Estimate Carbon Footprint using CCF Methodology
-def calculate_carbon_footprint_ccf(tasks_by_hour, ci, pue: float, min_watts, max_watts, memory_coefficient):
+def calculate_carbon_footprint_ccf(tasks_by_hour, ci, pue: float, min_watts, max_watts, memory_coefficient, reserved_memory):
     total_energy = 0.0
     total_energy_pue = 0.0
     total_memory_energy = 0.0
     total_memory_energy_pue = 0.0
     total_carbon_emissions = 0.0
+    total_reserved_memory_energy = 0.0
+    total_reserved_memory_emissions = 0.0
     records = []
 
     for hour, tasks in tasks_by_hour.items():
@@ -226,6 +229,23 @@ def calculate_carbon_footprint_ccf(tasks_by_hour, ci, pue: float, min_watts, max
                 mm = str(hour_ts.minute).zfill(2)
                 ci_key = f'{month}/{day}-{hh}:{mm}'
                 ci_val = ci[ci_key] 
+
+            if reserved_memory is not None:
+                starts = []
+                ends = []
+
+                for task in tasks:
+                    starts.append(int(task.get_start()))
+                    ends.append(int(task.get_complete()))
+
+                earliest = min(starts)
+                latest = max(ends)
+
+                realtime = (latest - earliest) / 1000 / 3600  # convert from ms to h 
+                reserved_memory_energy = realtime * reserved_memory * memory_coefficient * 0.001
+                reserved_memory_emissions = reserved_memory_energy * ci_val
+                total_reserved_memory_energy += reserved_memory_energy
+                total_reserved_memory_emissions += reserved_memory_emissions
 
             for task in tasks:
                 (energy, memory) = estimate_task_energy_consumption_ccf(task, min_watts, max_watts, memory_coefficient)
@@ -242,7 +262,7 @@ def calculate_carbon_footprint_ccf(tasks_by_hour, ci, pue: float, min_watts, max
                 total_carbon_emissions += task_footprint
                 records.append(task)
 
-    return ((total_energy, total_energy_pue, total_memory_energy, total_memory_energy_pue, total_carbon_emissions), records)
+    return ((total_energy, total_energy_pue, total_memory_energy, total_memory_energy_pue, total_carbon_emissions, total_reserved_memory_energy, total_reserved_memory_emissions), records)
 
 
 def get_hours(arr):
@@ -264,7 +284,7 @@ def check_if_float(value):
 
 
 def parse_arguments(args):
-    if len(args) != 4 and len(args) != 6:
+    if len(args) != 4 and len(args) and len(args) != 7:
         print_usage_exit()
 
     arguments = {}
@@ -281,6 +301,10 @@ def parse_arguments(args):
     if len(args) == 6:
         arguments[PUE] = float(args[4])
         arguments[MEMORY_COEFFICIENT] = float(args[5])
+    elif len(args) == 7:
+        arguments[PUE] = float(args[4])
+        arguments[MEMORY_COEFFICIENT] = float(args[5])
+        arguments[RESERVED_MEMORY] = float(args[6])
     else:
         arguments[PUE] = DEFAULT_PUE_VALUE
         arguments[MEMORY_COEFFICIENT] = DEFAULT_MEMORY_POWER_DRAW
@@ -330,8 +354,13 @@ def main(arguments):
         ci_filename = f"data/intensity/{arguments[CI]}.{FILE}"
         ci = parse_ci_intervals(ci_filename)
 
-    (ccf, records) = calculate_carbon_footprint_ccf(tasks_by_hour, ci, pue, min_watts, max_watts, memory_coefficient)
-    ccf_energy, ccf_energy_pue, ccf_memory, ccf_memory_pue, ccf_carbon_emissions = ccf
+    if RESERVED_MEMORY in arguments:
+        res_mem = arguments[RESERVED_MEMORY]
+    else:
+        res_mem = None
+
+    (ccf, records) = calculate_carbon_footprint_ccf(tasks_by_hour, ci, pue, min_watts, max_watts, memory_coefficient, res_mem)
+    ccf_energy, ccf_energy_pue, ccf_memory, ccf_memory_pue, ccf_carbon_emissions, reserved_memory_energy, reserved_memory_emissions = ccf
 
     summary += "\nCloud Carbon Footprint Method:\n"
     summary += f"- Energy Consumption (exc. PUE): {ccf_energy}kWh\n"
@@ -341,6 +370,13 @@ def main(arguments):
     summary += f"- Carbon Emissions: {ccf_carbon_emissions}gCO2e"
 
     print(f"Carbon Emissions (CCF): {ccf_carbon_emissions}gCO2e")
+
+    if RESERVED_MEMORY in arguments:
+        print(f"- Reserved Memory Energy (exc. PUE): {reserved_memory_energy}kWh")
+        print(f"- Reserved Memory Emissions: {reserved_memory_emissions}kWh")
+        print(f"- Total Carbon Emissions: {ccf_carbon_emissions + reserved_memory_emissions}gCO2e")
+        total_energy = ccf_energy + ccf_memory + reserved_memory_energy
+        print(f"% CPU [{((ccf_energy / total_energy) * 100):.2f}%] | % Memory [{(((reserved_memory_energy + ccf_memory) / total_energy) * 100):.2f}%]")
 
     # Report Summary
     if isinstance(ci, float):
@@ -364,3 +400,4 @@ if __name__ == '__main__':
     # Parse Arguments
     args = sys.argv[1:]
     arguments = parse_arguments(args)
+    main(arguments)
