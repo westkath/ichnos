@@ -79,7 +79,7 @@ def parse_trace_file(filepath):
 
 
 def print_usage_exit():
-    usage = "Ichnos (Linear): python -m src.scripts.CarbonFootprint <trace-name> <ci-value|ci-file-name> <min-watts> <max-watts> <pue=1.0> <memory-coeff=0.392>"
+    usage = "Ichnos (Linear): python -m src.scripts.CarbonFootprint <trace-name> <ci-value|ci-file-name> <min-watts> <max-watts> <? pue=1.0> <? memory-coeff=0.392>"
     print(usage)
     exit(-1)
 
@@ -196,12 +196,12 @@ def estimate_task_energy_consumption_ccf(task: CarbonRecord, min_watts, max_watt
     # CPU Usage (%)
     cpu_usage = task.get_cpu_usage() / (100.0 * no_cores)
     # Memory (GB)
-    memory = task.get_memory() / 1000000000  # bytes to GB
+    memory = task.get_memory() / 1073741824  # memory reported in bytes  https://www.nextflow.io/docs/latest/metrics.html 
     # Core Energy Consumption (without PUE)
     core_consumption = time * linear_power_model(cpu_usage, min_watts, max_watts) * 0.001  # convert from W to kW
     # Memory Power Consumption (without PUE)
     memory_consumption = memory * memory_coefficient * time * 0.001  # convert from W to kW
-    # Overall and Memory Consumption (kW) (without PUE)
+    # Overall and Memory Consumption (kWh) (without PUE)
     return (core_consumption, memory_consumption)
 
 

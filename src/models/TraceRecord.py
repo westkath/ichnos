@@ -64,7 +64,10 @@ class TraceRecord:
                 else:
                     value = float(value[:-1])
             elif field == "cpus":
-                value = int(value)
+                if value == '-':
+                    value = 1
+                else:
+                    value = int(value)
 
             raw[field] = value
 
