@@ -96,6 +96,10 @@ def parse_trace_file(filepath):
     return records
 
 
+def linear_power_model(cpu_usage, min_watts, max_watts):
+    return min_watts + cpu_usage * (max_watts - min_watts)
+
+
 def print_usage_exit():
     usage = "carbon-footprint $ python -m src.scripts.ExtractTimeline <ci-file-name> <min-watts> <max-watts>"
     example = "carbon-footprint $ python -m src.scripts.ExtractTimeline ci-test 65 219"
@@ -217,9 +221,9 @@ def calculate_carbon_footprint_for_task(task: CarbonRecord, min_watts, max_watts
     # CPU Usage (%)
     cpu_usage = task.get_cpu_usage() / (100.0 * no_cores)
     # Memory (GB)
-    memory = task.get_memory() / 1000000000  # bytes to GB
+    memory = task.get_memory() / 1073741824  # bytes to GB
     # Core Energy Consumption (without PUE)
-    core_consumption = time * (min_watts + cpu_usage * (max_watts - min_watts)) * 0.001  # convert from W to kW
+    core_consumption = time * linear_power_model(cpu_usage, min_watts, max_watts) * 0.001  # convert from W to kW
     # Memory Power Consumption (without PUE)
     memory_consumption = memory * memory_coefficient * time * 0.001  # convert from W to kW
     # Overall and Memory Consumption (kW) (without PUE)
