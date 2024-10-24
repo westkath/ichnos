@@ -81,7 +81,7 @@ def parse_trace_file(filepath):
 
 
 def print_usage_exit():
-    usage = "Ichnos (Linear): python -m src.scripts.CarbonFootprint <trace-name> <ci-value|ci-file-name> <min-watts> <max-watts> <? pue=1.0> <? memory-coeff=0.392>"
+    usage = "Ichnos: python -m src.scripts.CarbonFootprint <trace-name> <ci-value|ci-file-name> <min-watts> <max-watts> <? pue=1.0> <? memory-coeff=0.392>"
     print(usage)
     exit(-1)
 
@@ -223,9 +223,9 @@ def calculate_carbon_footprint_ccf(tasks_by_hour, ci, pue: float, min_watts, max
                 ci_val = ci
             else:
                 hour_ts = to_timestamp(hour)
+                hh = str(hour_ts.hour).zfill(2)
                 month = str(hour_ts.month).zfill(2)
                 day = str(hour_ts.day).zfill(2)
-                hh = str(hour_ts.hour).zfill(2)
                 mm = str(hour_ts.minute).zfill(2)
                 ci_key = f'{month}/{day}-{hh}:{mm}'
                 ci_val = ci[ci_key] 
@@ -280,7 +280,7 @@ def check_if_float(value):
 
 
 def parse_arguments(args):
-    if len(args) != 4 and len(args) and len(args) != 8:
+    if len(args) != 4 and len(args) != 6 and len(args) != 8:
         print_usage_exit()
 
     arguments = {}
@@ -365,13 +365,20 @@ def main(arguments):
 
     print(f"Carbon Emissions (CCF): {ccf_carbon_emissions}gCO2e")
 
-    #     print(f"- Reserved Memory Energy (exc. PUE): {reserved_memory_energy}kWh")
-    #     print(f"- Reserved Memory Emissions: {reserved_memory_emissions}kWh")
-    #     print(f"- Total Carbon Emissions: {ccf_carbon_emissions + reserved_memory_emissions}gCO2e")
-    #     total_energy = ccf_energy + ccf_memory + reserved_memory_energy
-    #     print(f"% CPU [{((ccf_energy / total_energy) * 100):.2f}%] | % Memory [{(((reserved_memory_energy + ccf_memory) / total_energy) * 100):.2f}%]")
     if check_reserved_memory_flag:
-        print("To Do")
+        total_res_mem_energy = 0
+
+        for realtime, ci in node_memory_usage:
+            res_mem_energy = (arguments[RESERVED_MEMORY] * memory_coefficient * realtime * 0.001) * arguments[NUM_OF_NODES]  # convert from W to kW
+            total_res_mem_energy += res_mem_energy
+
+        total_energy = total_res_mem_energy + ccf_energy + ccf_memory
+        res_report = f"Reserved Memory Energy Consumption: {total_res_mem_energy}kWh"
+        energy_split_report = f"% CPU [{((ccf_energy / total_energy) * 100):.2f}%] | % Memory [{(((total_res_mem_energy + ccf_memory) / total_energy) * 100):.2f}%]"
+        summary += f"{res_report}\n"
+        summary += f"{energy_split_report}\n"
+        print(res_report)
+        print(energy_split_report)
 
     # Report Summary
     if isinstance(ci, float):
